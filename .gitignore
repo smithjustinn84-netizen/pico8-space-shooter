@@ -1,0 +1,14 @@
+# PICO-8 specific
+backup/
+*.bak
+
+# PICO-8 Exported files
+# (uncomment if you use specific export folders)
+# export/
+# bin/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+*.swp
+*.lock
