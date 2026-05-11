@@ -13,9 +13,9 @@ S_BULLET_LASER = 23
 S_EXPL_1 = 25
 S_EXPL_2 = 26
 S_EXPL_3 = 27
-S_MUZZLE        = 16
+S_MUZZLE = 16
 S_MUZZLE_PLASMA = 17
-S_MUZZLE_LASER  = 18
+S_MUZZLE_LASER = 18
 
 ships = {
   { sp = 1, sp_l = 4, sp_r = 7, weapon = "basic", hp = 3, max_speed = 3, fire_delay = 10, plasma_lv = 3, laser_lv = 5, t_cols = { 8, 9, 10 } },
@@ -356,7 +356,7 @@ function fire_bullet(obj)
     local d = make_debris(obj.x + 4, obj.y - 2)
     d.vx = rnd(1) - 0.5
     d.vy = -1 - rnd(1)
-    d.col = ({9, 10})[flr(rnd(2)) + 1]
+    d.col = ({ 9, 10 })[flr(rnd(2)) + 1]
     d.life = 10
     d.ml = d.life
     add(entities, d)
@@ -371,7 +371,7 @@ function fire_bullet(obj)
       local d = make_debris(obj.x + 4, obj.y - 2)
       d.vx = rnd(1) - 0.5
       d.vy = -1 - rnd(1)
-      d.col = ({11, 3})[flr(rnd(2)) + 1]
+      d.col = ({ 11, 3 })[flr(rnd(2)) + 1]
       d.life = 10 + rnd(10)
       d.ml = d.life
       add(entities, d)
@@ -383,13 +383,19 @@ function fire_bullet(obj)
       local d = make_debris(obj.x + 4, obj.y - 4)
       d.vx = rnd(2) - 1
       d.vy = -2 - rnd(2)
-      d.col = ({8, 9, 10})[flr(rnd(3)) + 1]
+      d.col = ({ 8, 9, 10 })[flr(rnd(3)) + 1]
       d.life = 15 + rnd(10)
       d.ml = d.life
       add(entities, d)
     end
   end
-  play_sound(0)
+  if btype == "plasma" then
+    play_sound(4)
+  elseif btype == "laser" then
+    play_sound(5)
+  else
+    play_sound(6)
+  end
 end
 
 function draw_player(obj)
@@ -441,7 +447,7 @@ function draw_muzzle_flash(obj, dx)
   local m_sp = S_MUZZLE
   if obj.weapon == "plasma" then m_sp = S_MUZZLE_PLASMA end
   if obj.weapon == "laser" then m_sp = S_MUZZLE_LASER end
-  
+
   local flip_x = obj.flash_t % 2 == 0
   local offset_y = flr(rnd(2))
   spr(m_sp, obj.x + dx, obj.y - 6 + offset_y, 1, 1, flip_x)
@@ -783,6 +789,7 @@ function check_collisions()
               level += 1
               level_kills = 0
               entities = {}
+              play_sound(3)
               go_to_level_intro()
               return
             end
@@ -939,3 +946,6 @@ __sfx__
 0005000028073000002607200000240710000022070000001e060000001a050000001505000000110400000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000800002c074000002a063000002806200000260510000024040000001e030000001803000000100200000008010000000000000000000000000000000000000000000000000000000000000000000000000000
 0005000024570285702b5703057034570375703c5703c5703c5703c5603c5503c5403c5303c5203c5100000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000200000000383503a350000003c3403c340000003a3300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000100000000380503a0403804036030340303202030010300102e0002c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000200002c1502a150281402613024120221100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
