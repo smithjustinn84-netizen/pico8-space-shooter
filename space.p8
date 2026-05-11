@@ -16,6 +16,7 @@ S_EXPL_3 = 27
 S_MUZZLE = 16
 S_MUZZLE_PLASMA = 17
 S_MUZZLE_LASER = 18
+S_GEM = 28
 
 ships = {
   { sp = 1, sp_l = 4, sp_r = 7, weapon = "basic", hp = 3, max_speed = 3, fire_delay = 10, plasma_lv = 3, laser_lv = 5, t_cols = { 8, 9, 10 } },
@@ -300,7 +301,8 @@ function init_player()
     plasma_lv = s.plasma_lv,
     laser_lv = s.laser_lv,
     thrusting = false,
-    t_cols = s.t_cols
+    t_cols = s.t_cols,
+    resources = 0
   }
 end
 
@@ -523,12 +525,14 @@ end
 
 enemy_types = {
   basic = {
+    gem_tier = 1,
     sp = S_ENEMY, pts = 10, move = move_straight,
     mk_x = function() return rnd(120) end,
     mk_vy = function() return 1 + rnd(1) end,
     extra = function(e) end
   },
   zigzag = {
+    gem_tier = 1,
     sp = S_ENEMY2, pts = 25, move = move_zigzag,
     mk_x = function() return 30 + rnd(60) end,
     mk_vy = function() return 0.8 + rnd(0.4) end,
@@ -537,6 +541,7 @@ enemy_types = {
   -- spawns directly above the player and dives fast
   -- red/fiery palette: aggressive, danger signal
   diver = {
+    gem_tier = 1,
     sp = S_ENEMY, pts = 20, move = move_straight,
     mk_x = function() return p.x end,
     mk_vy = function() return 1.8 + rnd(0.8) end,
@@ -554,6 +559,7 @@ enemy_types = {
   -- steers toward the player horizontally
   -- purple/indigo palette: eerie, alien
   chaser = {
+    gem_tier = 2,
     sp = S_ENEMY2, pts = 30, move = move_chase,
     mk_x = function() return rnd(120) end,
     mk_vy = function() return 0.6 + rnd(0.4) end,
@@ -571,6 +577,7 @@ enemy_types = {
   -- slow-moving enemy that fires aimed shots
   -- toxic green palette, pulses white when about to fire
   shooter = {
+    gem_tier = 2,
     sp = S_ENEMY, pts = 40, move = move_shooter,
     mk_x = function() return 10 + rnd(100) end,
     mk_vy = function() return 0.4 + rnd(0.3) end,
@@ -601,6 +608,7 @@ enemy_types = {
     end
   },
   tank = {
+    gem_tier = 3,
     sp = S_ENEMY3, pts = 50, move = move_straight,
     mk_x = function() return 20 + rnd(80) end,
     mk_vy = function() return 0.3 + rnd(0.2) end,
@@ -617,6 +625,7 @@ enemy_types = {
     end
   },
   spinner = {
+    gem_tier = 2,
     sp = S_ENEMY4, pts = 40, move = move_zigzag,
     mk_x = function() return rnd(120) end,
     mk_vy = function() return 1 + rnd(0.5) end,
@@ -701,6 +710,7 @@ function spawn_enemy(type_name)
     end
   }
   td.extra(e)
+  e.gem_tier = td.gem_tier or 1
   add(entities, e)
 end
 
@@ -740,6 +750,28 @@ function make_popup(x, y, pts)
     draw = function(pu)
       local c = pu.t > 13 and 7 or (pu.t > 6 and 6 or 5)
       print("+" .. pu.pts, pu.x, pu.y, c)
+    end
+  }
+end
+
+function make_gem(x, y, tier)
+  local val = tier == 3 and 4 or (tier == 2 and 2 or 1)
+  return {
+    tag = "gem", x = x, y = y, w = 8, h = 8,
+    hx = 1, hy = 1, hw = 6, hh = 6,
+    vy = 0.5, tier = tier, value = val,
+    update = function(g)
+      g.y += g.vy
+      if g.y > 136 then g.dead = true end
+    end,
+    draw = function(g)
+      if g.tier == 2 then
+        pal(3, 1) pal(6, 12) pal(11, 12)
+      elseif g.tier == 3 then
+        pal(3, 8) pal(6, 9) pal(11, 10)
+      end
+      spr(S_GEM + flr(t() * 4) % 2, g.x, g.y)
+      pal()
     end
   }
 end
@@ -796,6 +828,10 @@ function check_collisions()
               return
             end
             shake_screen(2, 8)
+            local drop = e.gem_tier == 3 and 70 or (e.gem_tier == 2 and 50 or 30)
+            if rnd(100) < drop then
+              add(entities, make_gem(e.x, e.y, e.gem_tier))
+            end
           end
         end
       end
@@ -816,6 +852,14 @@ function check_collisions()
         shake_screen(2, 8)
         hit_flash_t = 6
         play_sound(2)
+      end
+    end
+    if e.tag == "gem" and not e.dead then
+      if collide(p, e) then
+        p.resources += e.value
+        e.dead = true
+        add(entities, make_popup(e.x, e.y, e.value))
+        play_sound(9)
       end
     end
   end
@@ -899,6 +943,8 @@ function draw_hud()
   for i = 1, p.max_hp do
     spr(i <= p.hp and 14 or 15, start_x + (i - 1) * 9, 1)
   end
+  spr(S_GEM, 79, 1)
+  print(p.resources, 88, 2, 11)
 end
 
 function apply_shake()
@@ -953,3 +999,4 @@ __sfx__
 000200002c1502a150281402613024120221100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0003000028360263502434022330203201e3100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0002000022670206501e6301c6201a610000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000500003005034050370503c0500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
