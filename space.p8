@@ -17,6 +17,7 @@ S_MUZZLE = 16
 S_MUZZLE_PLASMA = 17
 S_MUZZLE_LASER = 18
 S_GEM = 28
+S_EXPL_BIG = 30
 
 ships = {
   { sp = 1, sp_l = 4, sp_r = 7, weapon = "basic", hp = 3, max_speed = 3, fire_delay = 10, plasma_lv = 3, laser_lv = 5, t_cols = { 8, 9, 10 } },
@@ -137,6 +138,7 @@ game_state = {
     enemies = {}
     ebullets = {}
     gems = {}
+    sublists = {bullet=bullets,enemy=enemies,ebullet=ebullets,gem=gems}
     init_player()
     shake_t = 0
     shake_mag = 0
@@ -170,10 +172,7 @@ game_state = {
       if e.dead and e.tag ~= "player" then
         del(entities, e)
         -- keep typed sub-lists in sync
-        if e.tag == "bullet" then del(bullets, e) end
-        if e.tag == "enemy" then del(enemies, e) end
-        if e.tag == "ebullet" then del(ebullets, e) end
-        if e.tag == "gem" then del(gems, e) end
+        if sublists[e.tag] then del(sublists[e.tag],e) end
       end
     end
     if not p.dead then
@@ -541,11 +540,15 @@ function player_death()
   death_timer = 120
   death_flash_t = 15
   shake_screen(8, 50)
+  local cx, cy = p.x + 4, p.y + 4
+  add(entities, make_player_explosion(cx, cy))
   for i = 1, 3 do
-    add(entities, make_explosion(p.x + rnd(12) - 6, p.y + rnd(12) - 6))
+    add(entities, make_explosion(cx + rnd(20) - 10, cy + rnd(20) - 10))
   end
+  burst_sparks(cx, cy, 24, {7, 9, 10})
+  burst_smoke(cx, cy, 14, {5, 6, 13})
   for i = 1, 20 do
-    add(entities, make_debris(p.x + 4, p.y + 4))
+    add(entities, make_debris(cx, cy))
   end
   play_sound(2)
 end
@@ -610,6 +613,19 @@ function move_shooter(e)
   end
 end
 
+function apply_pal(c3,c11,c12,c7,c6)
+  pal(3,c3) pal(11,c11) pal(12,c12) pal(7,c7) pal(6,c6)
+end
+
+function draw_flash(e)
+  if e.flash and e.flash>0 then
+    for c=0,15 do pal(c,7) end
+    spr(e.sp+flr(t()*4)%2,e.x,e.y)
+    pal()
+    e.flash-=1
+  end
+end
+
 enemy_types = {
   basic = {
     gem_tier = 1,
@@ -634,11 +650,7 @@ enemy_types = {
     mk_vy = function() return 1.8 + rnd(0.8) end,
     extra = function(e) end,
     draw_fn = function(en)
-      pal(3, 8)
-      pal(11, 9)
-      pal(12, 8)
-      pal(7, 10)
-      pal(6, 9)
+      apply_pal(8,9,8,10,9)
       spr(S_ENEMY + flr(t() * 4) % 2, en.x, en.y)
       pal()
     end
@@ -652,11 +664,7 @@ enemy_types = {
     mk_vy = function() return 0.6 + rnd(0.4) end,
     extra = function(e) end,
     draw_fn = function(en)
-      pal(3, 2)
-      pal(11, 14)
-      pal(12, 13)
-      pal(7, 14)
-      pal(6, 13)
+      apply_pal(2,14,13,14,13)
       spr(S_ENEMY2 + flr(t() * 4) % 2, en.x, en.y)
       pal()
     end
@@ -673,17 +681,9 @@ enemy_types = {
       local charging = en.shoot_t < 18
       if charging then
         local f = flr(t() * 12) % 2 == 0
-        pal(3, f and 7 or 10)
-        pal(11, f and 7 or 10)
-        pal(12, 10)
-        pal(7, 7)
-        pal(6, 10)
+        apply_pal(f and 7 or 10, f and 7 or 10, 10, 7, 10)
       else
-        pal(3, 3)
-        pal(11, 10)
-        pal(12, 11)
-        pal(7, 10)
-        pal(6, 11)
+        apply_pal(3,10,11,10,11)
       end
       spr(S_ENEMY + flr(t() * 4) % 2, en.x, en.y)
       pal()
@@ -778,11 +778,9 @@ function make_hunter()
   e.render = function(self)
     local diving = (self.state == self.dive)
     if diving then
-      pal(3, 9) pal(11, 10) pal(12, 9)
-      pal(7, 10) pal(6, 9)
+      apply_pal(9,10,9,10,9)
     else
-      pal(3, 4) pal(11, 14) pal(12, 4)
-      pal(7, 14) pal(6, 4)
+      apply_pal(4,14,4,14,4)
     end
     spr(S_ENEMY3 + flr(t() * 4) % 2, self.x, self.y)
     pal()
@@ -793,12 +791,7 @@ function make_hunter()
         line(self.x + 4, self.y + 9, self.x + 4, self.y + 14, 14)
       end
     end
-    if self.flash and self.flash > 0 then
-      for c = 0, 15 do pal(c, 7) end
-      spr(S_ENEMY3 + flr(t() * 4) % 2, self.x, self.y)
-      pal()
-      self.flash -= 1
-    end
+    draw_flash(self)
   end
 
   return e
@@ -896,12 +889,7 @@ function spawn_enemy(type_name)
     else
       spr(self.sp + flr(t() * 4) % 2, self.x, self.y)
     end
-    if self.flash and self.flash > 0 then
-      for c = 0, 15 do pal(c, 7) end
-      spr(self.sp + flr(t() * 4) % 2, self.x, self.y)
-      pal()
-      self.flash -= 1
-    end
+    draw_flash(self)
   end
   td.extra(e)
   e.gem_tier = td.gem_tier or 1
@@ -932,6 +920,28 @@ function make_explosion(x, y)
       local r = flr(prog * (2 - prog) * 6)
       circ(self.x + 4, self.y + 4, r, 10)
       circ(self.x + 4, self.y + 4, r + 2, 9)
+    end
+  end
+  return e
+end
+
+function make_player_explosion(cx, cy)
+  local e = make_ent("explosion", cx, cy)
+  e.t = 24
+  e.move = function(self)
+    self.t -= 1
+    if self.t <= 0 then self.dead = true end
+  end
+  e.render = function(self)
+    if self.t > 6 then
+      spr(S_EXPL_BIG, self.x - 8, self.y - 8, 2, 2)
+    end
+    local r = flr((24 - self.t) * 3)
+    if self.t > 12 then
+      circ(self.x, self.y, r, 10)
+      circ(self.x, self.y, r + 3, 9)
+    elseif self.t > 4 then
+      circ(self.x, self.y, r, 5)
     end
   end
   return e
@@ -1167,6 +1177,29 @@ function burst_thruster(x, y, cols, dir)
   end
 end
 
+function kill_enemy(en)
+  play_sound(1)
+  add(entities,make_explosion(en.x,en.y))
+  add(entities,make_popup(en.x,en.y,en.pts))
+  burst_sparks(en.x+4,en.y+4,8,{7,9,10})
+  burst_smoke(en.x+4,en.y+4,4)
+  en.dead=true
+  score+=en.pts
+  level_kills+=1
+  if level_kills>=level*8 then
+    level+=1
+    level_kills=0
+    stage_completing=true
+    for e in all(entities) do
+      if e.tag~="gem" and e.tag~="player" then e.dead=true end
+    end
+    return true
+  end
+  shake_screen(2,8)
+  local drop=en.gem_tier==3 and 70 or(en.gem_tier==2 and 50 or 30)
+  if rnd(100)<drop then spawn_gem(en.x,en.y,en.gem_tier) end
+end
+
 -- optimized collision: uses typed sub-lists so we only check
 -- bulletsれ❎enemies (layer filtering) instead of entitiesれ❎entities.
 function check_collisions()
@@ -1181,29 +1214,7 @@ function check_collisions()
             en.flash = 3
             play_sound(8)
           else
-            play_sound(1)
-            add(entities, make_explosion(en.x, en.y))
-            add(entities, make_popup(en.x, en.y, en.pts))
-            burst_sparks(en.x + 4, en.y + 4, 8, { 7, 9, 10 })
-            burst_smoke(en.x + 4, en.y + 4, 4)
-            en.dead = true
-            score += en.pts
-            level_kills += 1
-            if level_kills >= level * 8 then
-              level += 1
-              level_kills = 0
-              stage_completing = true
-              for e in all(entities) do
-                if e.tag ~= "gem" and e.tag ~= "player" then e.dead = true end
-              end
-              -- sub-lists will be cleaned up in the main update loop
-              return
-            end
-            shake_screen(2, 8)
-            local drop = en.gem_tier == 3 and 70 or (en.gem_tier == 2 and 50 or 30)
-            if rnd(100) < drop then
-              spawn_gem(en.x, en.y, en.gem_tier)
-            end
+            if kill_enemy(en) then return end
           end
         end
       end
@@ -1350,21 +1361,21 @@ __gfx__
 0000000058588585888cc888006556000585250008c8e000005560000052525000e8c80000065500000880000008800000088000000880000088880000800800
 000000000055550088800888056cc6500055000088588e0005556000000055000e88588000065550000000000008800000088000000000000008800000088000
 00000000007007005500005505c00c50077000005605650005cc660000000770057507500066cc50000000000000000000088000000000000000000000000000
-00000000000000000000000000080000000800000000000000000000000b00000030300000000000009a0a900500005000000000000000000000000000000000
-0000000000000000000000000089800000898000001cc10000111100000b0000003b30000007700009a77a905006600500000000000000000000000000000000
-000000000000000000000000089a98000897980001cddc10011cc110003b3000003b3000007aa7009a7887a90060060000000000000000000000000000000000
-000a0000000700000007000008a7a800087778000cddddc001cccc10003b3000000b0000007aa700a787787a0600006000073000000b70000000000000000000
-009aa90000c77c0000b77b00009a9000009790000cddddc001cccc10003b3000000b000000077000a787787a060000600076b300003b67000000000000000000
-008aa800001cc100003bb300008980000089800001cddc10011cc110003b3000003b3000000000009a7887a90060060000b6b300003b6b000000000000000000
-00899800001dd100003bb3000008000000080000001cc10000111100000b0000003b30000000000009a77a90500660050033b300003b63000000000000000000
-00088000000110000003300000000000000000000000000000000000000b00000030300000000000009aa9000500005000033000000330000000000000000000
-005333000053330000000000000000000530033005000030000e0000000000000000000000000000000000000000000000000000000000000000000000000000
-053b3330053b3330055555500555555053b33b335b3003b3002e20000e000e000000000000000000000000000000000000000000000000000000000000000000
-33bbbb3333bbbb3355655655565555653bbbbbb33bbb3bb302222200002220000000000000000000000000000000000000000000000000000000000000000000
-3b8287b33be828b355555555555555553bb67bb33bb67bb3e22622e0022622000000000000000000000000000000000000000000000000000000000000000000
-3bb33b333bb33b336666666666666666036717300361773002222200002220000000000000000000000000000000000000000000000000000000000000000000
-033333300333333058855885058888500371173033711733002e20000e000e000000000000000000000000000000000000000000000000000000000000000000
-00b00300030000b00550055005500550303bb303003bb300000e0000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000080000000800000000000000000000000b00000030300000000000009a0a900500005000000000000000000400444400000004
+0000000000000000000000000089800000898000001cc10000111100000b0000003b30000007700009a77a905006600500000000000000000004482222244400
+000000000000000000000000089a98000897980001cddc10011cc110003b3000003b3000007aa7009a7887a90060060000000000000000000004292888224400
+000a0000000700000007000008a7a800087778000cddddc001cccc10003b3000000b0000007aa700a787787a0600006000073000000b70000042228888829400
+009aa90000c77c0000b77b00009a9000009790000cddddc001cccc10003b3000000b000000077000a787787a060000600076b300003b67000492288999882240
+008aa800001cc100003bb300008980000089800001cddc10011cc110003b3000003b3000000000009a7887a90060060000b6b300003b6b0004828899a9982240
+00899800001dd100003bb3000008000000080000001cc10000111100000b0000003b30000000000009a77a90500660050033b300003b63000422899a7a988220
+00088000000110000003300000000000000000000000000000000000000b00000030300000000000009aa900050000500003300000033000042889a7aa998820
+005333000053330000000000000000000530033005000030000e000000000000000000000000000000000000000000000000000000000000042889a7a9988220
+053b3330053b3330055555500555555053b33b335b3003b3002e20000e000e00000000000000000000000000000000000000000000000000042889aa99882200
+33bbbb3333bbbb3355655655565555653bbbbbb33bbb3bb302222200002220000000000000000000000000000000000000000000000000000022889988822400
+3b8287b33be828b355555555555555553bb67bb33bb67bb3e22622e0022622000000000000000000000000000000000000000000000000000042288888924400
+3bb33b333bb33b336666666666666666036717300361773002222200002220000000000000000000000000000000000000000000000000000048228822244440
+033333300333333058855885058888500371173033711733002e20000e000e000000000000000000000000000000000000000000000000000444422222444000
+00b00300030000b00550055005500550303bb303003bb300000e0000000000000000000000000000000000000000000000000000000000000000900444404000
 00000000000000000000000000000000030330300003300000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __sfx__
 000200002c054000002c053000002c052000002c051000002c050000002c040000002c03000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
