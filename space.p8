@@ -27,6 +27,7 @@ selected_ship = 1
 
 function _init()
   hi_score = 0
+  final_score = 0
   level = 1
   level_kills = 0
   level_bonus = 0
@@ -130,8 +131,13 @@ game_state = {
     level = 1
     level_kills = 0
     level_bonus = 0
-    init_player()
     entities = {}
+    -- layer-filtered sub-lists: avoid O(n²) full entity scans
+    bullets = {}
+    enemies = {}
+    ebullets = {}
+    gems = {}
+    init_player()
     shake_t = 0
     shake_mag = 0
     hit_flash_t = 0
@@ -155,33 +161,39 @@ game_state = {
       if level >= 4 and rnd(100) < 0.5 * scale then spawn_enemy("tank") end
       -- level 3+: spinners
       if level >= 3 and rnd(100) < 0.8 * scale then spawn_enemy("spinner") end
+      -- level 4+: hunters patrol then dive (state-machine enemy)
+      if level >= 4 and rnd(100) < 0.5 * scale then spawn_hunter() end
     end
+    -- unified entity loop: player + all enemies/bullets/fx
     for e in all(entities) do
       e.update(e)
-      if e.dead then del(entities, e) end
+      if e.dead and e.tag ~= "player" then
+        del(entities, e)
+        -- keep typed sub-lists in sync
+        if e.tag == "bullet" then del(bullets, e) end
+        if e.tag == "enemy" then del(enemies, e) end
+        if e.tag == "ebullet" then del(ebullets, e) end
+        if e.tag == "gem" then del(gems, e) end
+      end
+    end
+    if not p.dead then
+      check_collisions()
     end
     if stage_completing then
       local any = false
       for e in all(entities) do
-        if e.tag == "gem" then any = true break end
+        if e.tag == "gem" then
+          any = true break
+        end
       end
       if not any then
         stage_completing = false
         entities = {}
+        -- re-insert player so it survives the wipe
+        add(entities, p, 1)
         go_to_level_intro()
         return
       end
-    end
-    if not p.dead then
-      update_player(p)
-      check_collisions()
-    else
-      death_timer -= 1
-      if death_timer > 0 and death_timer % 20 == 0 then
-        add(entities, make_explosion(p.x + rnd(16) - 8, p.y + rnd(16) - 8))
-        shake_screen(2, 6)
-      end
-      if death_timer <= 0 then go_to_gameover() end
     end
     if shake_t > 0 then
       shake_t -= 1
@@ -193,11 +205,7 @@ game_state = {
   draw = function()
     apply_shake()
     draw_stars()
-    if p.dead then
-      draw_player_death(p)
-    else
-      draw_player(p)
-    end
+    -- player is entity[1]; all entities draw in insertion order
     for e in all(entities) do
       e.draw(e)
     end
@@ -292,6 +300,7 @@ level_intro_state = {
 function init_player()
   local s = ships[selected_ship]
   p = {
+    tag = "player",
     x = 60,
     y = 100,
     vx = 0,
@@ -316,8 +325,32 @@ function init_player()
     laser_lv = s.laser_lv,
     thrusting = false,
     t_cols = s.t_cols,
-    resources = 0
+    resources = 0,
+    dead = false,
+    -- entity update: runs movement/input, or ticks the death timer
+    update = function(self)
+      if not self.dead then
+        update_player(self)
+      else
+        death_timer -= 1
+        if death_timer > 0 and death_timer % 20 == 0 then
+          add(entities, make_explosion(self.x + rnd(16) - 8, self.y + rnd(16) - 8))
+          shake_screen(2, 6)
+        end
+        if death_timer <= 0 then go_to_gameover() end
+      end
+    end,
+    -- entity draw: renders ship or death animation
+    draw = function(self)
+      if self.dead then
+        draw_player_death(self)
+      else
+        draw_player(self)
+      end
+    end
   }
+  -- insert at front so player draws beneath enemies/bullets
+  add(entities, p, 1)
 end
 
 function update_player(obj)
@@ -368,7 +401,9 @@ end
 function fire_bullet(obj)
   local btype = obj.weapon
   if btype == "basic" then
-    add(entities, make_bullet(obj, "basic"))
+    local b = make_bullet(obj, "basic")
+    add(entities, b)
+    add(bullets, b)
     local d = make_debris(obj.x + 4, obj.y - 2)
     d.vx = rnd(1) - 0.5
     d.vy = -1 - rnd(1)
@@ -381,8 +416,8 @@ function fire_bullet(obj)
     local b2 = make_bullet(obj, "plasma")
     b1.x -= 3
     b2.x += 3
-    add(entities, b1)
-    add(entities, b2)
+    add(entities, b1) add(bullets, b1)
+    add(entities, b2) add(bullets, b2)
     for i = 1, 2 do
       local d = make_debris(obj.x + 4, obj.y - 2)
       d.vx = rnd(1) - 0.5
@@ -393,7 +428,8 @@ function fire_bullet(obj)
       add(entities, d)
     end
   elseif btype == "laser" then
-    add(entities, make_bullet(obj, "laser"))
+    local b = make_bullet(obj, "laser")
+    add(entities, b) add(bullets, b)
     shake_screen(1, 4)
     for i = 1, 3 do
       local d = make_debris(obj.x + 4, obj.y - 4)
@@ -511,6 +547,29 @@ end
 -->8
 -- tab 3: entities
 
+-- base entity constructor: creates a table with shared fields
+-- and default update/draw stubs that call self:move() / self:render().
+-- specialized constructors call this, then override what they need.
+function make_ent(tag, x, y)
+  local e = {}
+  e.tag = tag
+  e.x = x
+  e.y = y
+  e.dead = false
+  -- default stubs (overridden per-type)
+  e.move = function(self) end
+  e.render = function(self) end
+  -- colon-style dispatch: self is the entity table
+  e.update = function(self)
+    self:move()
+    if self.dead then return end
+  end
+  e.draw = function(self)
+    self:render()
+  end
+  return e
+end
+
 function move_straight(e)
   -- intentionally empty: vy alone moves enemy straight down
 end
@@ -532,7 +591,9 @@ function move_shooter(e)
   e.shoot_t -= 1
   if e.shoot_t <= 0 then
     e.shoot_t = 55
-    add(entities, make_enemy_bullet(e))
+    local eb = make_enemy_bullet(e)
+    add(entities, eb)
+    add(ebullets, eb)
     play_sound(7)
   end
 end
@@ -650,28 +711,118 @@ enemy_types = {
   }
 }
 
+-- hunter: a state-machine enemy.
+-- state patrol: slides sideways at fixed depth, watching the player.
+-- state dive:   drops straight toward the player at high speed.
+-- 'e.state' holds whichever function is currently active;
+-- e.update calls self:state() each frame to run it.
+function make_hunter()
+  local e = make_ent("enemy", 10 + rnd(100), -8)
+  e.sp = S_ENEMY3
+  e.dx = (rnd(1) > 0.5) and 0.8 or -0.8
+  -- patrol direction
+  e.vy = 0
+  e.w = 8
+  e.h = 8
+  e.pts = 60
+  e.gem_tier = 3
+  e.patrol_y = 10 + rnd(20)
+  -- Y to hold during patrol
+
+  -- state 1: slide sideways until x is within 8px of the player
+  e.patrol = function(self)
+    self.x += self.dx
+    -- bounce off screen edges
+    if self.x < 4 then
+      self.x = 4
+      self.dx = 0.8
+    elseif self.x > 118 then
+      self.x = 118
+      self.dx = -0.8
+    end
+    -- approach the patrol depth
+    local dy = self.patrol_y - self.y
+    self.y += dy * 0.05
+    -- switch to dive when roughly aligned with player
+    if abs(self.x - p.x) < 10 then
+      self.state = self.dive
+    end
+  end
+
+  -- state 2: drop straight down fast
+  e.dive = function(self)
+    self.vy += 0.15
+    -- accelerate downward
+    if self.vy > 4 then self.vy = 4 end
+    self.y += self.vy
+    if self.y > 128 then self.dead = true end
+  end
+
+  -- start in patrol state
+  e.state = e.patrol
+
+  -- override move: just dispatch to whichever state is current
+  e.move = function(self)
+    self:state()
+  end
+
+  -- yellow/gold palette: distinct from other enemy types
+  e.render = function(self)
+    local diving = (self.state == self.dive)
+    if diving then
+      pal(3, 9) pal(11, 10) pal(12, 9)
+      pal(7, 10) pal(6, 9)
+    else
+      pal(3, 4) pal(11, 14) pal(12, 4)
+      pal(7, 14) pal(6, 4)
+    end
+    spr(S_ENEMY3 + flr(t() * 4) % 2, self.x, self.y)
+    pal()
+    -- draw a targeting reticle while patrolling
+    if not diving then
+      local blink = flr(t() * 6) % 2 == 0
+      if blink then
+        line(self.x + 4, self.y + 9, self.x + 4, self.y + 14, 14)
+      end
+    end
+  end
+
+  return e
+end
+
+function spawn_hunter()
+  local e = make_hunter()
+  add(entities, e)
+  add(enemies, e)
+end
+
 function make_bullet(obj, btype)
   local s = S_BULLET
   local v = -4
   if btype == "plasma" then
-    s = S_BULLET_PLASMA
-    v = -5
+    s = S_BULLET_PLASMA v = -5
   end
   if btype == "laser" then
-    s = S_BULLET_LASER
-    v = -6
+    s = S_BULLET_LASER v = -6
   end
-  return {
-    tag = "bullet", x = obj.x, y = obj.y - 4,
-    sp = s, vy = v, w = 8, h = 8, hx = 2, hw = 4, btype = btype,
-    update = function(b)
-      b.y += b.vy
-      if b.y < -8 then b.dead = true end
-    end,
-    draw = function(b)
-      spr(b.sp + flr(t() * 12) % 2, b.x, b.y)
-    end
-  }
+  local e = make_ent("bullet", obj.x, obj.y - 4)
+  e.sp = s
+  e.vy = v
+  e.w = 8
+  e.h = 8
+  e.hx = 2
+  e.hw = 4
+  e.btype = btype
+  -- move: fly upward, expire when off-screen
+  e.move = function(self)
+    self.y += self.vy
+    if self.y < -8 then self.dead = true end
+  end
+  -- render: two-frame animation driven by t()
+  e.render = function(self)
+    spr(self.sp + flr(t() * 12) % 2, self.x, self.y)
+  end
+  return e
 end
 
 -- enemy bullet aimed toward the player at time of firing
@@ -681,76 +832,89 @@ function make_enemy_bullet(src)
   local d = sqrt(dx * dx + dy * dy)
   if d == 0 then d = 1 end
   local spd = 2.2
-  return {
-    tag = "ebullet", x = src.x + 1, y = src.y + 8,
-    vx = (dx / d) * spd, vy = (dy / d) * spd,
-    w = 4, h = 4,
-    update = function(b)
-      b.x += b.vx
-      b.y += b.vy
-      if b.y > 136 or b.y < -16 or b.x < -16 or b.x > 144 then
-        b.dead = true
-      end
-    end,
-    draw = function(b)
-      -- small red plasma bolt
-      pset(b.x, b.y, 8)
-      pset(b.x + 1, b.y, 9)
-      pset(b.x, b.y + 1, 9)
-      pset(b.x + 1, b.y + 1, 10)
+  local e = make_ent("ebullet", src.x + 1, src.y + 8)
+  e.vx = (dx / d) * spd
+  e.vy = (dy / d) * spd
+  e.w = 4
+  e.h = 4
+  -- move: travel in aimed direction, expire when off-screen
+  e.move = function(self)
+    self.x += self.vx
+    self.y += self.vy
+    if self.y > 136 or self.y < -16
+        or self.x < -16 or self.x > 144 then
+      self.dead = true
     end
-  }
+  end
+  -- render: 2x2 pixel bolt, hot-core color ramp
+  e.render = function(self)
+    pset(self.x, self.y, 8)
+    pset(self.x + 1, self.y, 9)
+    pset(self.x, self.y + 1, 9)
+    pset(self.x + 1, self.y + 1, 10)
+  end
+  return e
 end
 
 function spawn_enemy(type_name)
   local td = enemy_types[type_name]
-  local x = td.mk_x()
   local dfn = td.draw_fn
-  local e = {
-    tag = "enemy", x = x, y = -8,
-    sp = td.sp, vy = td.mk_vy(),
-    w = 8, h = 8, pts = td.pts, move = td.move,
-    update = function(en)
-      en.y += en.vy
-      en.move(en)
-      if en.y > 128 then en.dead = true end
-    end,
-    draw = function(en)
-      if dfn then
-        dfn(en)
-      else
-        spr(en.sp + flr(t() * 4) % 2, en.x, en.y)
-      end
+  local e = make_ent("enemy", td.mk_x(), -8)
+  e.sp = td.sp
+  e.vy = td.mk_vy()
+  e.w = 8
+  e.h = 8
+  e.pts = td.pts
+  -- move: scroll down + run the type-specific steering function.
+  -- td.move (e.g. move_zigzag, move_chase) is called as a plain
+  -- function here because it was authored for the old dot style.
+  e.move = function(self)
+    self.y += self.vy
+    td.move(self)
+    -- delegates to the enemy_types steering fn
+    if self.y > 128 then self.dead = true end
+  end
+  -- render: use the type's custom draw_fn if present, else
+  -- fall back to the animated sprite default.
+  e.render = function(self)
+    if dfn then
+      dfn(self)
+    else
+      spr(self.sp + flr(t() * 4) % 2, self.x, self.y)
     end
-  }
+  end
   td.extra(e)
   e.gem_tier = td.gem_tier or 1
   add(entities, e)
+  add(enemies, e)
 end
 
 function make_explosion(x, y)
-  return {
-    tag = "explosion", x = x, y = y, t = 12,
-    update = function(ex)
-      ex.t -= 1
-      if ex.t <= 0 then ex.dead = true end
-    end,
-    draw = function(ex)
-      local s = S_EXPL_1
-      if ex.t < 4 then
-        s = S_EXPL_3
-      elseif ex.t < 8 then
-        s = S_EXPL_2
-      end
-      spr(s, ex.x, ex.y)
-      if ex.t > 8 then
-        local prog = (12 - ex.t) / 4
-        local r = flr(prog * (2 - prog) * 6)
-        circ(ex.x + 4, ex.y + 4, r, 10)
-        circ(ex.x + 4, ex.y + 4, r + 2, 9)
-      end
+  local e = make_ent("explosion", x, y)
+  e.t = 12
+  -- move: count down the timer, mark dead when done
+  -- 'self' here refers to the explosion table (e)
+  e.move = function(self)
+    self.t -= 1
+    if self.t <= 0 then self.dead = true end
+  end
+  -- render: pick the right explosion frame and draw a ring
+  e.render = function(self)
+    local s = S_EXPL_1
+    if self.t < 4 then
+      s = S_EXPL_3
+    elseif self.t < 8 then
+      s = S_EXPL_2
     end
-  }
+    spr(s, self.x, self.y)
+    if self.t > 8 then
+      local prog = (12 - self.t) / 4
+      local r = flr(prog * (2 - prog) * 6)
+      circ(self.x + 4, self.y + 4, r, 10)
+      circ(self.x + 4, self.y + 4, r + 2, 9)
+    end
+  end
+  return e
 end
 
 function make_popup(x, y, pts)
@@ -768,6 +932,13 @@ function make_popup(x, y, pts)
   }
 end
 
+-- helper: add a gem to both entity list and gems sub-list
+function spawn_gem(x, y, tier)
+  local g = make_gem(x, y, tier)
+  add(entities, g)
+  add(gems, g)
+end
+
 function make_gem(x, y, tier)
   local val = tier == 3 and 4 or (tier == 2 and 2 or 1)
   return {
@@ -777,7 +948,7 @@ function make_gem(x, y, tier)
     update = function(g)
       local dx = p.x + 4 - g.x
       local dy = p.y + 4 - g.y
-      local dist = sqrt(dx*dx + dy*dy)
+      local dist = sqrt(dx * dx + dy * dy)
       if stage_completing or dist < 24 then
         local spd = stage_completing and 3 or (24 - dist) / 24 * 2
         g.x += dx / dist * spd
@@ -804,87 +975,101 @@ function make_debris(x, y)
   local spd = 1 + rnd(3)
   local life = 30 + flr(rnd(40))
   local col = ({ 8, 9, 10, 7, 7, 5 })[flr(rnd(6)) + 1]
-  return {
-    tag = "debris", x = x, y = y,
-    vx = cos(ang) * spd, vy = sin(ang) * spd - 0.5,
-    life = life, ml = life, col = col,
-    update = function(d)
-      d.x += d.vx
-      d.y += d.vy
-      d.vy += 0.05
-      d.vx *= 0.97
-      d.life -= 1
-      if d.life <= 0 then d.dead = true end
-    end,
-    draw = function(d)
-      local f = d.life / d.ml
-      local c = f > 0.5 and d.col or (f > 0.2 and 5 or 1)
-      pset(d.x, d.y, c)
-      if f > 0.5 then pset(d.x - d.vx * .4, d.y - d.vy * .4, 1) end
-    end
-  }
+  local e = make_ent("debris", x, y)
+  e.vx = cos(ang) * spd
+  e.vy = sin(ang) * spd - 0.5
+  e.life = life
+  e.ml = life
+  e.col = col
+  -- move: physics step — gravity drag and lifetime countdown
+  e.move = function(self)
+    self.x += self.vx
+    self.y += self.vy
+    self.vy += 0.05
+    -- gravity
+    self.vx *= 0.97
+    -- drag
+    self.life -= 1
+    if self.life <= 0 then self.dead = true end
+  end
+  -- render: fade from bright to dark as lifetime expires
+  e.render = function(self)
+    local f = self.life / self.ml
+    local c = f > 0.5 and self.col or (f > 0.2 and 5 or 1)
+    pset(self.x, self.y, c)
+    if f > 0.5 then pset(self.x - self.vx * .4, self.y - self.vy * .4, 1) end
+  end
+  return e
 end
 
+-- optimized collision: uses typed sub-lists so we only check
+-- bullets×enemies (layer filtering) instead of entities×entities.
 function check_collisions()
-  for e in all(entities) do
-    if e.tag == "enemy" and not e.dead then
-      for b in all(entities) do
-        if b.tag == "bullet" and not b.dead and collide(e, b) then
+  -- 1. player bullets vs enemies
+  for en in all(enemies) do
+    if not en.dead then
+      for b in all(bullets) do
+        if not b.dead and collide(en, b) then
           b.dead = true
-          if e.hp and e.hp > 1 then
-            e.hp -= 1
-            e.flash = 3
+          if en.hp and en.hp > 1 then
+            en.hp -= 1
+            en.flash = 3
             play_sound(8)
           else
             play_sound(1)
-            add(entities, make_explosion(e.x, e.y))
-            add(entities, make_popup(e.x, e.y, e.pts))
-            e.dead = true
-            score += e.pts
+            add(entities, make_explosion(en.x, en.y))
+            add(entities, make_popup(en.x, en.y, en.pts))
+            en.dead = true
+            score += en.pts
             level_kills += 1
             if level_kills >= level * 8 then
               level += 1
               level_kills = 0
               stage_completing = true
               for e in all(entities) do
-                if e.tag ~= "gem" then e.dead = true end
+                if e.tag ~= "gem" and e.tag ~= "player" then e.dead = true end
               end
+              -- sub-lists will be cleaned up in the main update loop
               return
             end
             shake_screen(2, 8)
-            local drop = e.gem_tier == 3 and 70 or (e.gem_tier == 2 and 50 or 30)
+            local drop = en.gem_tier == 3 and 70 or (en.gem_tier == 2 and 50 or 30)
             if rnd(100) < drop then
-              add(entities, make_gem(e.x, e.y, e.gem_tier))
+              spawn_gem(en.x, en.y, en.gem_tier)
             end
           end
         end
       end
-      if p.iframes <= 0 and collide(p, e) then
+      -- 2. enemy body vs player (no iframes needed on enemy bullets)
+      if p.iframes <= 0 and collide(p, en) then
         play_sound(2)
-        add(entities, make_explosion(e.x, e.y))
-        e.dead = true
+        add(entities, make_explosion(en.x, en.y))
+        en.dead = true
         damage_player(60)
         shake_screen(3, 12)
         hit_flash_t = 8
       end
     end
-    -- enemy bullets hit the player
-    if e.tag == "ebullet" and not e.dead and p.iframes <= 0 then
-      if collide(p, e) then
-        e.dead = true
+  end
+  -- 3. enemy bullets vs player
+  if p.iframes <= 0 then
+    for eb in all(ebullets) do
+      if not eb.dead and collide(p, eb) then
+        eb.dead = true
         damage_player(50)
         shake_screen(2, 8)
         hit_flash_t = 6
         play_sound(2)
       end
     end
-    if e.tag == "gem" and not e.dead then
-      if collide(p, e) then
-        p.resources += e.value
-        e.dead = true
-        add(entities, make_popup(e.x, e.y, e.value))
-        play_sound(9)
-      end
+  end
+  -- 4. gems vs player
+  for g in all(gems) do
+    if not g.dead and collide(p, g) then
+      p.resources += g.value
+      g.dead = true
+      add(entities, make_popup(g.x, g.y, g.value))
+      play_sound(9)
     end
   end
 end
