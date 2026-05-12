@@ -393,6 +393,11 @@ function update_player(obj)
   obj.x += obj.vx
   obj.y += obj.vy
 
+  -- thruster particles: spawn every few frames when moving
+  if obj.thrusting and flr(t() * 60) % 2 == 0 then
+    burst_thruster(obj.x + 4, obj.y + 8, obj.t_cols, 1)
+  end
+
   -- clamp to screen bounds
   obj.x = mid(0, obj.x, 120)
   obj.y = mid(0, obj.y, 120)
@@ -574,6 +579,12 @@ function move_straight(e)
   -- intentionally empty: vy alone moves enemy straight down
 end
 
+function move_diver(e)
+  if flr(t() * 60) % 4 == 0 then
+    burst_thruster(e.x + 4, e.y, { 8, 9, 7 }, -1)
+  end
+end
+
 function move_zigzag(e)
   e.phase = (e.phase + 0.008) % 1
   e.x = mid(0, e.ox + 30 * sin(e.phase), 120)
@@ -617,7 +628,7 @@ enemy_types = {
   -- red/fiery palette: aggressive, danger signal
   diver = {
     gem_tier = 1,
-    sp = S_ENEMY, pts = 20, move = move_straight,
+    sp = S_ENEMY, pts = 20, move = move_diver,
     mk_x = function() return p.x end,
     mk_vy = function() return 1.8 + rnd(0.8) end,
     extra = function(e) end,
@@ -755,6 +766,9 @@ function make_hunter()
     -- accelerate downward
     if self.vy > 4 then self.vy = 4 end
     self.y += self.vy
+    if flr(t() * 60) % 3 == 0 then
+      burst_thruster(self.x + 4, self.y, { 10, 9, 8 }, -1)
+    end
     if self.y > 128 then self.dead = true end
   end
 
@@ -981,7 +995,7 @@ function make_debris(x, y)
   e.life = life
   e.ml = life
   e.col = col
-  -- move: physics step — gravity drag and lifetime countdown
+  -- move: physics step ヌ█⬆️ gravity drag and lifetime countdown
   e.move = function(self)
     self.x += self.vx
     self.y += self.vy
@@ -1002,8 +1016,153 @@ function make_debris(x, y)
   return e
 end
 
+-- ============================================================
+-- particle system
+-- ============================================================
+-- make_particle(x, y, opts) -- core constructor
+--
+-- opts fields (all optional, defaults shown):
+--   cols   = {7}       palette of PICO-8 colour indices to pick from
+--   ang    = rnd(1)    launch angle in PICO-8 turns (0-1)
+--   ang_r  = 1         if >0, angle is fully random; if <1 it narrows
+--                      the arc (0 = shoot exactly at ang)
+--   spd    = 1+rnd(2)  launch speed in px/frame
+--   life   = 20+rnd(20) frames the particle lives
+--   grav   = 0         gravity added to vy each frame
+--   drag   = 0.98      multiplier applied to vx,vy each frame
+--   fade   = true      colour shifts dark as life expires
+--   size   = 1         1=single pixel, 2=2れ❎2 block, 0=trail only
+--   trail  = false     draw a short 1-px tail behind the particle
+-- ============================================================
+function make_particle(x, y, opts)
+  opts = opts or {}
+
+  -- resolve options with defaults
+  local cols  = opts.cols  or { 7 }
+  local col   = cols[flr(rnd(#cols)) + 1]
+  local ang   = opts.ang   ~= nil and opts.ang or rnd(1)
+  local ar    = opts.ang_r ~= nil and opts.ang_r or 1
+  local spd   = opts.spd   ~= nil and opts.spd  or (1 + rnd(2))
+  local life  = opts.life  ~= nil and opts.life  or (20 + rnd(20))
+  local grav  = opts.grav  or 0
+  local drag  = opts.drag  ~= nil and opts.drag  or 0.98
+  local fade  = opts.fade  ~= false  -- default true
+  local size  = opts.size  ~= nil and opts.size  or 1
+  local trail = opts.trail or false
+
+  -- arc spread: ar=1 ヌ●★ fully random; ar=0 ヌ●★ exact angle
+  local a = ang + (rnd(ar) - ar * 0.5)
+
+  local e = make_ent("particle", x, y)
+  e.vx   = cos(a) * spd
+  e.vy   = sin(a) * spd
+  e.life = life
+  e.ml   = life
+  e.col  = col
+
+  e.move = function(self)
+    self.x  += self.vx
+    self.y  += self.vy
+    self.vy += grav
+    self.vx *= drag
+    self.vy *= drag
+    self.life -= 1
+    if self.life <= 0 then self.dead = true end
+  end
+
+  e.render = function(self)
+    local f = self.life / self.ml   -- 1ヌ●★0 as particle ages
+    -- colour fade: bright ヌ●★ mid ヌ●★ dark
+    local c = self.col
+    if fade then
+      if f < 0.25 then c = 1
+      elseif f < 0.5 then c = 5
+      end
+    end
+    -- draw trail behind motion vector
+    if trail and f > 0.4 then
+      pset(self.x - self.vx * 0.5,
+           self.y - self.vy * 0.5, 1)
+    end
+    -- draw body
+    if size == 2 then
+      rectfill(self.x, self.y, self.x + 1, self.y + 1, c)
+    elseif size == 1 then
+      pset(self.x, self.y, c)
+    end
+  end
+
+  return e
+end
+
+-- ============================================================
+-- burst helpers ヌ█⬆️ call these at an event site, they spawn
+-- several particles and add them to entities automatically.
+-- ============================================================
+
+-- spark burst: sharp bright sparks flying outward
+-- use for: bullet impact, ship hit, explosion accent
+function burst_sparks(x, y, n, cols)
+  n    = n    or 6
+  cols = cols or { 7, 9, 10 }
+  for i = 1, n do
+    add(entities, make_particle(x, y, {
+      cols  = cols,
+      spd   = 1.5 + rnd(2.5),
+      life  = 10 + rnd(12),
+      grav  = 0.04,
+      drag  = 0.94,
+      trail = true,
+      size  = 1
+    }))
+  end
+end
+
+-- smoke puff: slow, heavy, fades dark ヌ█⬆️ use for: enemy death,
+-- engine exhaust, big explosions
+function burst_smoke(x, y, n, cols)
+  n    = n    or 5
+  cols = cols or { 5, 6, 13 }
+  for i = 1, n do
+    add(entities, make_particle(x, y, {
+      cols = cols,
+      spd  = 0.2 + rnd(0.6),
+      life = 25 + rnd(20),
+      grav = -0.01,   -- slight upward drift
+      drag = 0.96,
+      fade = true,
+      size = 2
+    }))
+  end
+end
+
+-- thruster glow: tight upward cone ヌ█⬆️ use for: player/enemy
+-- engines, boost pickups
+-- dir: 1=upward (player), -1=downward (enemy)
+function burst_thruster(x, y, cols, dir)
+  dir  = dir  or 1
+  cols = cols or { 8, 9, 10 }
+  -- cone faces "up" in screen space (negative y = up)
+  -- PICO-8 sin/cos: 0.25 = up, 0.75 = down
+  local base_ang = dir == 1 and 0.25 or 0.75
+  for i = 1, 3 do
+    add(entities, make_particle(x, y, {
+      cols  = cols,
+      ang   = base_ang,
+      ang_r = 0.12,     -- narrow 43るぬ cone
+      spd   = 0.8 + rnd(1.2),
+      life  = 6 + rnd(8),
+      grav  = 0,
+      drag  = 0.9,
+      fade  = true,
+      trail = false,
+      size  = 1
+    }))
+  end
+end
+
 -- optimized collision: uses typed sub-lists so we only check
--- bullets×enemies (layer filtering) instead of entities×entities.
+-- bulletsれ❎enemies (layer filtering) instead of entitiesれ❎entities.
 function check_collisions()
   -- 1. player bullets vs enemies
   for en in all(enemies) do
@@ -1019,6 +1178,8 @@ function check_collisions()
             play_sound(1)
             add(entities, make_explosion(en.x, en.y))
             add(entities, make_popup(en.x, en.y, en.pts))
+            burst_sparks(en.x + 4, en.y + 4, 8, { 7, 9, 10 })
+            burst_smoke(en.x + 4, en.y + 4, 4)
             en.dead = true
             score += en.pts
             level_kills += 1
@@ -1044,6 +1205,7 @@ function check_collisions()
       if p.iframes <= 0 and collide(p, en) then
         play_sound(2)
         add(entities, make_explosion(en.x, en.y))
+        burst_sparks(en.x + 4, en.y + 4, 6, { 8, 9, 7 })
         en.dead = true
         damage_player(60)
         shake_screen(3, 12)
@@ -1182,14 +1344,14 @@ __gfx__
 0000000058588585888cc888006556000585250008c8e000005560000052525000e8c80000065500000880000008800000088000000880000088880000800800
 000000000055550088800888056cc6500055000088588e0005556000000055000e88588000065550000000000008800000088000000000000008800000088000
 00000000007007005500005505c00c50077000005605650005cc660000000770057507500066cc50000000000000000000088000000000000000000000000000
-00000000000000000000000000080000000800000000000000000000000b00000030300000000000009a0a9005000050000000000000000000a6700000000000
-0000000000000000000000000089800000898000001cc10000111100000b0000003b30000007700009a77a905006600500000000000000000a0670a000000000
-000000000000000000000000089a98000897980001cddc10011cc110003b3000003b3000007aa7009a7887a9006006000000000000000000000670000000a000
-000a0000000700000007000008a7a800087778000cddddc001cccc10003b3000000b0000007aa700a787787a0600006000073000000b70007777777700a07000
-009aa90000c77c0000b77b00009a9000009790000cddddc001cccc10003b3000000b000000077000a787787a060000600076b300003b67000006700000077600
-008aa800001cc100003bb300008980000089800001cddc10011cc110003b3000003b3000000000009a7887a90060060000b6b300003b6b000006700000076000
-00899800001dd100003bb3000008000000080000001cc10000111100000b0000003b30000000000009a77a90500660050033b300003b63000a0670a000a60a00
-00088000000110000003300000000000000000000000000000000000000b00000030300000000000009aa9000500005000033000000330000006700000000000
+00000000000000000000000000080000000800000000000000000000000b00000030300000000000009a0a900500005000000000000000000000000000000000
+0000000000000000000000000089800000898000001cc10000111100000b0000003b30000007700009a77a905006600500000000000000000000000000000000
+000000000000000000000000089a98000897980001cddc10011cc110003b3000003b3000007aa7009a7887a90060060000000000000000000000000000000000
+000a0000000700000007000008a7a800087778000cddddc001cccc10003b3000000b0000007aa700a787787a0600006000073000000b70000000000000000000
+009aa90000c77c0000b77b00009a9000009790000cddddc001cccc10003b3000000b000000077000a787787a060000600076b300003b67000000000000000000
+008aa800001cc100003bb300008980000089800001cddc10011cc110003b3000003b3000000000009a7887a90060060000b6b300003b6b000000000000000000
+00899800001dd100003bb3000008000000080000001cc10000111100000b0000003b30000000000009a77a90500660050033b300003b63000000000000000000
+00088000000110000003300000000000000000000000000000000000000b00000030300000000000009aa9000500005000033000000330000000000000000000
 005333000053330000000000000000000530033005000030000e0000000000000000000000000000000000000000000000000000000000000000000000000000
 053b3330053b3330055555500555555053b33b335b3003b3002e20000e000e000000000000000000000000000000000000000000000000000000000000000000
 33bbbb3333bbbb3355655655565555653bbbbbb33bbb3bb302222200002220000000000000000000000000000000000000000000000000000000000000000000
