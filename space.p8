@@ -927,20 +927,20 @@ end
 
 function make_player_explosion(cx, cy)
   local e = make_ent("explosion", cx, cy)
-  e.t = 24
+  e.t = 50
   e.move = function(self)
     self.t -= 1
     if self.t <= 0 then self.dead = true end
   end
   e.render = function(self)
-    if self.t > 6 then
+    if self.t > 20 then
       spr(S_EXPL_BIG, self.x - 8, self.y - 8, 2, 2)
     end
-    local r = flr((24 - self.t) * 3)
-    if self.t > 12 then
+    local r = flr((50 - self.t) * 2)
+    if self.t > 28 then
       circ(self.x, self.y, r, 10)
       circ(self.x, self.y, r + 3, 9)
-    elseif self.t > 4 then
+    elseif self.t > 8 then
       circ(self.x, self.y, r, 5)
     end
   end
