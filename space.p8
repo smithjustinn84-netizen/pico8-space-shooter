@@ -320,6 +320,7 @@ function init_player()
     hp = s.hp,
     max_hp = s.hp,
     iframes = 0,
+    max_iframes = 0,
     weapon = s.weapon,
     plasma_lv = s.plasma_lv,
     laser_lv = s.laser_lv,
@@ -466,18 +467,17 @@ function draw_player(obj)
     dx = 1
   end
 
-  draw_thruster(obj, dx)
-
-  local period = 2 + flr(obj.iframes / 15)
-  if obj.iframes > 0 and obj.iframes % period < flr(period / 2) then
-    for c = 0, 15 do
-      pal(c, 7)
+  if obj.iframes > 0 then
+    local ni = obj.iframes / max(1, obj.max_iframes)
+    -- quadratic ease-in: slow blink at start, fast blink near end
+    local period = max(2, flr(ni * ni * 12) + 2)
+    if (obj.iframes % period) < flr(period / 2) then
+      return
     end
-    spr(s, obj.x, obj.y)
-    pal()
-  else
-    spr(s, obj.x, obj.y)
   end
+
+  draw_thruster(obj, dx)
+  spr(s, obj.x, obj.y)
 
   if obj.flash_t > 0 then
     draw_muzzle_flash(obj, dx)
@@ -531,6 +531,7 @@ end
 function damage_player(frames)
   p.hp -= 1
   p.iframes = frames
+  p.max_iframes = frames
   if p.hp <= 0 then player_death() end
 end
 
@@ -700,14 +701,7 @@ enemy_types = {
     mk_vy = function() return 0.3 + rnd(0.2) end,
     extra = function(e) e.hp = 4 end,
     draw_fn = function(en)
-      if en.flash and en.flash > 0 then
-        for c = 0, 15 do
-          pal(c, 7)
-        end
-        en.flash -= 1
-      end
       spr(S_ENEMY3 + flr(t() * 4) % 2, en.x, en.y)
-      pal()
     end
   },
   spinner = {
@@ -798,6 +792,12 @@ function make_hunter()
       if blink then
         line(self.x + 4, self.y + 9, self.x + 4, self.y + 14, 14)
       end
+    end
+    if self.flash and self.flash > 0 then
+      for c = 0, 15 do pal(c, 7) end
+      spr(S_ENEMY3 + flr(t() * 4) % 2, self.x, self.y)
+      pal()
+      self.flash -= 1
     end
   end
 
@@ -895,6 +895,12 @@ function spawn_enemy(type_name)
       dfn(self)
     else
       spr(self.sp + flr(t() * 4) % 2, self.x, self.y)
+    end
+    if self.flash and self.flash > 0 then
+      for c = 0, 15 do pal(c, 7) end
+      spr(self.sp + flr(t() * 4) % 2, self.x, self.y)
+      pal()
+      self.flash -= 1
     end
   end
   td.extra(e)
