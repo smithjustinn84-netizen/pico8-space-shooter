@@ -547,6 +547,7 @@ function player_death()
   end
   burst_sparks(cx, cy, 24, {7, 9, 10})
   burst_smoke(cx, cy, 14, {5, 6, 13})
+  burst_embers(cx, cy, 10)
   for i = 1, 20 do
     add(entities, make_debris(cx, cy))
   end
@@ -906,20 +907,21 @@ function make_explosion(x, y)
     self.t -= 1
     if self.t <= 0 then self.dead = true end
   end
-  -- render: pick the right explosion frame and draw a ring
   e.render = function(self)
     local s = S_EXPL_1
-    if self.t < 4 then
-      s = S_EXPL_3
-    elseif self.t < 8 then
-      s = S_EXPL_2
+    if self.t < 4 then s = S_EXPL_3
+    elseif self.t < 8 then s = S_EXPL_2
     end
     spr(s, self.x, self.y)
-    if self.t > 8 then
-      local prog = (12 - self.t) / 4
-      local r = flr(prog * (2 - prog) * 6)
-      circ(self.x + 4, self.y + 4, r, 10)
-      circ(self.x + 4, self.y + 4, r + 2, 9)
+    local cx, cy = self.x + 4, self.y + 4
+    if self.t >= 10 then pset(cx, cy, 7) end
+    local prog = (12 - self.t) / 12
+    local r = flr(prog * (2 - prog) * 14)
+    if r > 0 then
+      local c1 = self.t > 8 and 10 or (self.t > 4 and 9 or 8)
+      local c2 = self.t > 8 and 9 or (self.t > 4 and 8 or 5)
+      circ(cx, cy, r, c1)
+      circ(cx, cy, r + 1, c2)
     end
   end
   return e
@@ -937,11 +939,14 @@ function make_player_explosion(cx, cy)
       spr(S_EXPL_BIG, self.x - 8, self.y - 8, 2, 2)
     end
     local r = flr((50 - self.t) * 2)
+    local r2 = flr((50 - self.t) * 1.2)
     if self.t > 28 then
       circ(self.x, self.y, r, 10)
       circ(self.x, self.y, r + 3, 9)
+      if r2 > 0 then circ(self.x, self.y, r2, 7) end
     elseif self.t > 8 then
       circ(self.x, self.y, r, 5)
+      circ(self.x, self.y, r2, 1)
     end
   end
   return e
@@ -1152,6 +1157,24 @@ function burst_smoke(x, y, n, cols)
   end
 end
 
+-- slow hot embers drifting upward -- use for: explosion aftermath
+function burst_embers(x, y, n)
+  n = n or 5
+  for i = 1, n do
+    add(entities, make_particle(x, y, {
+      cols  = {8, 9, 10},
+      ang   = 0.25,
+      ang_r = 0.35,
+      spd   = 0.2 + rnd(0.7),
+      life  = 35 + rnd(30),
+      grav  = -0.015,
+      drag  = 0.97,
+      fade  = true,
+      size  = 1
+    }))
+  end
+end
+
 -- thruster glow: tight upward cone ヌ█⬆️ use for: player/enemy
 -- engines, boost pickups
 -- dir: 1=upward (player), -1=downward (enemy)
@@ -1181,8 +1204,9 @@ function kill_enemy(en)
   play_sound(1)
   add(entities,make_explosion(en.x,en.y))
   add(entities,make_popup(en.x,en.y,en.pts))
-  burst_sparks(en.x+4,en.y+4,8,{7,9,10})
-  burst_smoke(en.x+4,en.y+4,4)
+  burst_sparks(en.x+4,en.y+4,12,{7,9,10})
+  burst_smoke(en.x+4,en.y+4,7)
+  burst_embers(en.x+4,en.y+4,5)
   en.dead=true
   score+=en.pts
   level_kills+=1
