@@ -179,13 +179,7 @@ game_state = {
       check_collisions()
     end
     if stage_completing then
-      local any = false
-      for e in all(entities) do
-        if e.tag == "gem" then
-          any = true break
-        end
-      end
-      if not any then
+      if #gems == 0 then
         stage_completing = false
         entities = {}
         -- re-insert player so it survives the wipe
@@ -410,7 +404,7 @@ function update_player(obj)
   -- zero velocity on wall hit so ship doesn't slide along edges
   if obj.x < 0   then obj.x = 0;   obj.vx = 0 end
   if obj.x > 120 then obj.x = 120; obj.vx = 0 end
-  if obj.y < 0   then obj.y = 0;   obj.vy = 0 end
+  if obj.y < 10  then obj.y = 10;  obj.vy = 0 end
   if obj.y > 120 then obj.y = 120; obj.vy = 0 end
 end
 
@@ -420,13 +414,10 @@ function fire_bullet(obj)
     local b = make_bullet(obj, "basic")
     add(entities, b)
     add(bullets, b)
-    local d = make_debris(obj.x + 4, obj.y - 2)
-    d.vx = rnd(1) - 0.5
-    d.vy = -1 - rnd(1)
-    d.col = ({ 9, 10 })[flr(rnd(2)) + 1]
-    d.life = 10
-    d.ml = d.life
-    add(entities, d)
+    add(entities, make_particle(obj.x + 4, obj.y - 2, {
+      cols = {9, 10}, ang = 0.25, ang_r = 0.25,
+      spd = 1 + rnd(1), life = 10, drag = 0.94, fade = true
+    }))
   elseif btype == "plasma" then
     local b1 = make_bullet(obj, "plasma")
     local b2 = make_bullet(obj, "plasma")
@@ -435,26 +426,20 @@ function fire_bullet(obj)
     add(entities, b1) add(bullets, b1)
     add(entities, b2) add(bullets, b2)
     for i = 1, 2 do
-      local d = make_debris(obj.x + 4, obj.y - 2)
-      d.vx = rnd(1) - 0.5
-      d.vy = -1 - rnd(1)
-      d.col = ({ 11, 3 })[flr(rnd(2)) + 1]
-      d.life = 10 + rnd(10)
-      d.ml = d.life
-      add(entities, d)
+      add(entities, make_particle(obj.x + 4, obj.y - 2, {
+        cols = {11, 3}, ang = 0.25, ang_r = 0.25,
+        spd = 1 + rnd(1), life = 10 + rnd(10), drag = 0.94, fade = true
+      }))
     end
   elseif btype == "laser" then
     local b = make_bullet(obj, "laser")
     add(entities, b) add(bullets, b)
     shake_screen(1, 4)
     for i = 1, 3 do
-      local d = make_debris(obj.x + 4, obj.y - 4)
-      d.vx = rnd(2) - 1
-      d.vy = -2 - rnd(2)
-      d.col = ({ 8, 9, 10 })[flr(rnd(3)) + 1]
-      d.life = 15 + rnd(10)
-      d.ml = d.life
-      add(entities, d)
+      add(entities, make_particle(obj.x + 4, obj.y - 4, {
+        cols = {8, 9, 10}, ang = 0.25, ang_r = 0.35,
+        spd = 2 + rnd(2), life = 15 + rnd(10), drag = 0.92, fade = true
+      }))
     end
   end
   if btype == "plasma" then
@@ -964,18 +949,19 @@ function make_player_explosion(cx, cy)
 end
 
 function make_popup(x, y, pts)
-  return {
-    tag = "popup", x = x, y = y, t = 20, pts = pts,
-    update = function(pu)
-      pu.y -= pu.t * 0.05
-      pu.t -= 1
-      if pu.t <= 0 then pu.dead = true end
-    end,
-    draw = function(pu)
-      local c = pu.t > 13 and 7 or (pu.t > 6 and 6 or 5)
-      print("+" .. pu.pts, pu.x, pu.y, c)
-    end
-  }
+  local e = make_ent("popup", x, y)
+  e.t = 20
+  e.pts = pts
+  e.move = function(self)
+    self.y -= self.t * 0.05
+    self.t -= 1
+    if self.t <= 0 then self.dead = true end
+  end
+  e.render = function(self)
+    local c = self.t > 13 and 7 or (self.t > 6 and 6 or 5)
+    print("+" .. self.pts, self.x, self.y, c)
+  end
+  return e
 end
 
 -- helper: add a gem to both entity list and gems sub-list
@@ -987,33 +973,39 @@ end
 
 function make_gem(x, y, tier)
   local val = tier == 3 and 4 or (tier == 2 and 2 or 1)
-  return {
-    tag = "gem", x = x, y = y, w = 8, h = 8,
-    hx = 1, hy = 1, hw = 6, hh = 6,
-    vy = 0.5, tier = tier, value = val,
-    update = function(g)
-      local dx = p.x + 4 - g.x
-      local dy = p.y + 4 - g.y
-      local dist = sqrt(dx * dx + dy * dy)
-      if stage_completing or dist < 24 then
-        local spd = stage_completing and 3 or (24 - dist) / 24 * 2
-        g.x += dx / dist * spd
-        g.y += dy / dist * spd
-      else
-        g.y += g.vy
-      end
-      if g.y > 136 then g.dead = true end
-    end,
-    draw = function(g)
-      if g.tier == 2 then
-        pal(3, 1) pal(6, 12) pal(11, 12)
-      elseif g.tier == 3 then
-        pal(3, 8) pal(6, 9) pal(11, 10)
-      end
-      spr(S_GEM + flr(t() * 4) % 2, g.x, g.y)
-      pal()
+  local e = make_ent("gem", x, y)
+  e.w = 8
+  e.h = 8
+  e.hx = 1
+  e.hy = 1
+  e.hw = 6
+  e.hh = 6
+  e.vy = 0.5
+  e.tier = tier
+  e.value = val
+  e.move = function(self)
+    local dx = p.x + 4 - self.x
+    local dy = p.y + 4 - self.y
+    local dist = sqrt(dx * dx + dy * dy)
+    if stage_completing or dist < 24 then
+      local spd = stage_completing and 3 or (24 - dist) / 24 * 2
+      self.x += dx / dist * spd
+      self.y += dy / dist * spd
+    else
+      self.y += self.vy
     end
-  }
+    if self.y > 136 then self.dead = true end
+  end
+  e.render = function(self)
+    if self.tier == 2 then
+      pal(3, 1) pal(6, 12) pal(11, 12)
+    elseif self.tier == 3 then
+      pal(3, 8) pal(6, 9) pal(11, 10)
+    end
+    spr(S_GEM + flr(t() * 4) % 2, self.x, self.y)
+    pal()
+  end
+  return e
 end
 
 function make_debris(x, y)
