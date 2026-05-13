@@ -3,43 +3,62 @@ version 43
 __lua__
 -- tab 0: core logic
 
-S_ENEMY = 32
-S_ENEMY2 = 36
-S_ENEMY3 = 34
-S_ENEMY4 = 38
-S_BULLET = 19
-S_BULLET_PLASMA = 21
-S_BULLET_LASER = 23
-S_EXPL_1 = 25
-S_EXPL_2 = 26
-S_EXPL_3 = 27
-S_MUZZLE = 16
-S_MUZZLE_PLASMA = 17
-S_MUZZLE_LASER = 18
-S_GEM = 28
-S_EXPL_BIG = 30
+MAX_LEVEL = 5
 
-ships = {
-  { sp = 1, sp_l = 4, sp_r = 7, weapon = "basic",  hp = 3, max_speed = 3, accel = 0.45, fric = 0.85, fire_delay = 10, plasma_lv = 3, laser_lv = 5, t_cols = { 8, 9, 10 } },
-  { sp = 2, sp_l = 5, sp_r = 8, weapon = "plasma", hp = 2, max_speed = 4, accel = 0.60, fric = 0.88, fire_delay = 8,  plasma_lv = 1, laser_lv = 3, t_cols = { 12, 13, 7 } },
-  { sp = 3, sp_l = 6, sp_r = 9, weapon = "basic",  hp = 4, max_speed = 2, accel = 0.30, fric = 0.78, fire_delay = 12, plasma_lv = 4, laser_lv = 7, t_cols = { 11, 3, 10 } }
+level_waves = {
+  {"basic:20,basic:60,basic:100",
+   "basic:15,zigzag:45,basic:75,zigzag:105",
+   "basic:10,basic:40,zigzag:55,basic:80,basic:110,zigzag:25"},
+  {"chaser:15,chaser:105",
+   "diver:-1,diver:-1,basic:20,basic:100",
+   "chaser:10,chaser:110,diver:-1,diver:-1,zigzag:40,zigzag:80"},
+  {"shooter:20,shooter:100",
+   "bomber:30,bomber:90,basic:10,basic:60,basic:110",
+   "shooter:15,shooter:105,bomber:45,bomber:75,chaser:30,chaser:90"},
+  {"tank:60,basic:20,basic:100",
+   "spinner:15,spinner:48,spinner:81,spinner:113",
+   "tank:35,tank:85,spinner:15,spinner:60,spinner:105,shooter:8"},
+  {"hunter:-1,chaser:20,chaser:100",
+   "tank:30,tank:90,bomber:10,bomber:60,bomber:110,diver:-1",
+   "hunter:-1,hunter:-1,shooter:10,shooter:110,spinner:45,spinner:75"}
 }
+
+S_ENEMY,S_ENEMY2,S_ENEMY3,S_ENEMY4,S_ENEMY5,S_BULLET,S_BULLET_PLASMA,S_BULLET_LASER,S_MUZZLE,S_MUZZLE_PLASMA,S_MUZZLE_LASER=32,36,34,38,40,19,21,23,16,17,18
+
+SPARK_C={7,9,10}
+EMBER_C={8,9,10}
+SMOKE_C={5,6,13}
+PLASMA_C={12,13,14}
+ships = {
+  { 1, 4, 7, "basic", 3, 3, 0, 0, 10, false, EMBER_C },
+  { 2, 5, 8, "plasma", 2, 4, 0, 0, 8,  true,  { 12, 13, 7 } },
+  { 3, 6, 9, "basic", 4, 2, 0, 0, 12, false, { 11, 3, 10 } }
+}
+
+WEAPONS = {
+  basic  = { w_sp=49, b_sp=S_BULLET,        sfx=6, muz=S_MUZZLE,        dmg=1, v=-4 },
+  spread = { w_sp=50, b_sp=S_BULLET,        sfx=6, muz=S_MUZZLE,        dmg=1, v=-4 },
+  plasma = { w_sp=51, b_sp=S_BULLET_PLASMA, sfx=4, muz=S_MUZZLE_PLASMA, dmg=2, v=-5 },
+  laser  = { w_sp=52, b_sp=S_BULLET_LASER,  sfx=5, muz=S_MUZZLE_LASER,  dmg=3, v=-6 },
+}
+function tf(n,m) return flr(t()*n)%m end
+shop_choices = {}
+shop_cursor = 1
 selected_ship = 1
+hit_stop_t = 0
 
 function _init()
-  hi_score = 0
-  final_score = 0
-  level = 1
-  level_kills = 0
-  level_bonus = 0
-  li_t = 0
-  stage_completing = false
-  entities = {}
+  music(0)
+  hi_score,final_score,level,level_kills,li_t,stage_completing,entities=0,0,1,0,0,false,{}
   init_stars()
   go_to_title()
 end
 
 function _update60()
+  if hit_stop_t > 0 then
+    hit_stop_t -= 1
+    return
+  end
   if state.update then state.update() end
 end
 
@@ -50,23 +69,39 @@ end
 
 function go_to_title()
   entities = {}
+  music(4)
   state = title_state
 end
 
 function go_to_game()
+  music(0)
   game_state.init()
   go_to_level_intro()
 end
 
 function go_to_gameover()
+  music(8)
   go_t = 0
   hi_score = max(hi_score, final_score)
+  for e in all(entities) do
+    if e.tag == "enemy" or e.tag == "ebullet" then e.dead = true end
+  end
   state = gameover_state
+end
+
+function go_to_win()
+  music(9)
+  go_t = 0
+  final_score = score
+  hi_score = max(hi_score, final_score)
+  entities = {}
+  add(entities, p, 1)
+  state = win_state
 end
 
 function go_to_level_intro()
   li_t = 0
-  play_sound(3)
+  sfx(3)
   state = level_intro_state
 end
 
@@ -81,11 +116,11 @@ title_state = {
   update = function()
     if btnp(0) then
       selected_ship = ((selected_ship - 2) % 3) + 1
-      play_sound(0)
+      sfx(0)
     end
     if btnp(1) then
       selected_ship = (selected_ship % 3) + 1
-      play_sound(0)
+      sfx(0)
     end
     if btnp(4) or btnp(5) then
       go_to_game()
@@ -93,78 +128,77 @@ title_state = {
   end,
   draw = function()
     draw_stars()
-    print("space shooter", 38, 40, 7)
+    ?"space shooter", 38, 40, 7
 
-    local types = { "balanced", "assault", "heavy" }
+    types = { "balanced", "assault", "heavy" }
     for i = 1, 3 do
-      local sx = 46 + (i - 1) * 16
-      local sy = 60
+      sx,sy = 46 + (i - 1) * 16, 60
       if selected_ship == i then
         circfill(sx + 3, sy + 3, 8, 5)
-        print(types[i], 64 - #types[i] * 2, 74, 6)
-        local s = ships[i]
-        -- hp
-        print("hp:", 30, 82, 6)
-        for h = 1, s.hp do
-          spr(14, 46 + (h - 1) * 9, 81)
-        end
-        -- speed bars (max_speed 2-4 -> 1-3 bars)
-        print("spd:", 30, 90, 6)
-        local bars = s.max_speed - 1
-        for b = 1, bars do
+        ?types[i], 64 - #types[i] * 2, 74, 6
+        s = ships[i]
+        ?"hp:", 30, 82, 6
+        for h = 1, s[5] do spr(14, 46 + (h - 1) * 9, 81) end
+        ?"spd:", 30, 90, 6
+        for b = 1, s[6] - 1 do
           rectfill(46 + (b - 1) * 6, 90, 50 + (b - 1) * 6, 95, 7)
         end
-        -- starting weapon
-        print("gun: " .. s.weapon, 30, 98, 6)
+        ?"gun: " .. s[4], 30, 98, 6
       end
-      spr(ships[i].sp, sx, sy)
+      spr(ships[i][1], sx, sy)
     end
 
-    if flr(t() * 2) % 2 == 0 then
-      print("press z to start", 32, 110, 6)
+    if tf(2,2) == 0 then
+      ?"press z to start", 32, 110, 6
     end
   end
 }
 
 game_state = {
   init = function()
-    score = 0
-    level = 1
-    level_kills = 0
-    level_bonus = 0
-    entities = {}
-    -- layer-filtered sub-lists: avoid O(n²) full entity scans
-    bullets = {}
-    enemies = {}
-    ebullets = {}
-    gems = {}
-    sublists = {bullet=bullets,enemy=enemies,ebullet=ebullets,gem=gems}
+    score,level,level_kills,entities,bullets,enemies,ebullets=0,1,0,{},{},{},{}
+    sublists = {bullet=bullets,enemy=enemies,ebullet=ebullets}
     init_player()
-    shake_t = 0
-    shake_mag = 0
-    hit_flash_t = 0
-    death_flash_t = 0
-    death_timer = 0
-    stage_completing = false
+    shake_t,shake_mag,hit_flash_t,death_flash_t,death_timer,stage_completing,boss_spawned,boss_ent,current_wave,wave_spawned,hit_stop_t = 0,0,0,0,0,false,false,nil,1,false,0
+    spawn_queue={}
   end,
   update = function()
     update_stars()
     if not p.dead and not stage_completing then
-      local scale = 1 + (level - 1) * 0.3
-      if rnd(100) < 3 * scale then spawn_enemy("basic") end
-      if rnd(100) < 1 * scale then spawn_enemy("zigzag") end
-      -- level 2+: divers drop straight onto the player
-      if level >= 2 and rnd(100) < 0.8 * scale then spawn_enemy("diver") end
-      -- level 3+: chasers steer toward the player
-      if level >= 3 and rnd(100) < 0.6 * scale then spawn_enemy("chaser") end
-      -- level 2+: shooters fire bullets downward / at player
-      if level >= 2 and rnd(100) < 0.7 * scale then spawn_enemy("shooter") end
-      -- level 4+: tanks
-      if level >= 4 and rnd(100) < 0.5 * scale then spawn_enemy("tank") end
-      -- level 3+: spinners
-      if level >= 3 and rnd(100) < 0.8 * scale then spawn_enemy("spinner") end
-      -- level 4+: hunters patrol then dive (state-machine enemy)
-      if level >= 4 and rnd(100) < 0.5 * scale then spawn_hunter() end
+      if level <= MAX_LEVEL then
+        local wl = level_waves[level]
+        if #enemies==0 and wave_spawned and #spawn_queue==0 then
+          if current_wave < #wl then
+            current_wave+=1
+            wave_spawned=false
+          else
+            level+=1
+            current_wave=1
+            wave_spawned=false
+            level_kills=0
+            stage_completing=true
+          end
+        end
+        for q in all(spawn_queue) do
+          if q.d<=0 then
+            trigger_spawn(q.t,q.x)
+            del(spawn_queue,q)
+          else
+            q.d-=1
+          end
+        end
+        if not wave_spawned and not stage_completing then
+          wave_spawned=true
+          load_wave(wl[current_wave])
+        end
+      else
+        -- boss stage: spawn boss once
+        if not boss_spawned then
+          spawn_enemy("boss")
+          boss_spawned = true
+          music(10)
+        end
+      end
     end
     -- unified entity loop: player + all enemies/bullets/fx
     for e in all(entities) do
@@ -179,14 +213,13 @@ game_state = {
       check_collisions()
     end
     if stage_completing then
-      if #gems == 0 then
         stage_completing = false
-        entities = {}
+        entities,bullets,enemies,ebullets = {},{},{},{}
+        sublists = {bullet=bullets,enemy=enemies,ebullet=ebullets}
         -- re-insert player so it survives the wipe
         add(entities, p, 1)
-        go_to_level_intro()
+        go_to_shop()
         return
-      end
     end
     if shake_t > 0 then
       shake_t -= 1
@@ -208,51 +241,54 @@ game_state = {
   end
 }
 
-gameover_state = {
-  update = function()
-    go_t += 1
-    update_stars()
-    for e in all(entities) do
-      e.update(e)
-      if e.dead then del(entities, e) end
+function make_end_state(win)
+  local txt = win and "you win!" or "game over"
+  local cols = win and {11,3,11,3} or {8,9,10,9}
+  local sx = win and 39 or 38
+  local mx = win and 38 or 37
+  return {
+    update = function()
+      go_t += 1
+      update_stars()
+      for e in all(entities) do
+        e.update(e)
+        if e.dead then
+          del(entities, e)
+          if sublists[e.tag] then del(sublists[e.tag], e) end
+        end
+      end
+      if go_t > 90 then
+        if btnp(4) then go_to_game() end
+        if btnp(5) then go_to_title() end
+      end
+    end,
+    draw = function()
+      draw_stars()
+      for e in all(entities) do e.draw(e) end
+      camera()
+      ty = 45
+      if go_t < 30 then
+        ty = -20 + (1-(1-go_t/30)^3)*65
+      end
+      wx = flr(sin(go_t*0.07)*1.5)
+      cc = cols[flr(go_t*0.08)%4+1]
+      ?txt, sx+wx, ty+1, 1
+      ?txt, mx+wx, ty, cc
+      if go_t > 45 then
+        ?"score: "..final_score, 42, ty+16, go_t>65 and 7 or 6
+      end
+      if go_t > 60 then
+        hc = final_score>=hi_score and 10 or 6
+        ?"best:  "..hi_score, 42, ty+24, hc
+      end
+      if go_t > 90 and flr(go_t/8)%2==0 then
+        ?"z:retry  x:title", 26, ty+36, 6
+      end
     end
-    if go_t > 90 then
-      if btnp(4) then go_to_game() end
-      if btnp(5) then go_to_title() end
-    end
-  end,
-  draw = function()
-    draw_stars()
-    for e in all(entities) do
-      e.draw(e)
-    end
-    camera()
-    -- slide in from top with cubic ease-out
-    local ty = 45
-    if go_t < 30 then
-      local pr = go_t / 30
-      ty = -20 + (1 - (1 - pr) ^ 3) * 65
-    end
-    -- wobble + color cycle
-    local wx = flr(sin(go_t * 0.07) * 1.5)
-    local cc = ({ 8, 9, 10, 9 })[flr(go_t * 0.08) % 4 + 1]
-    -- shadow + text
-    print("game over", 38 + wx, ty + 1, 1)
-    print("game over", 37 + wx, ty, cc)
-    -- score fades in
-    if go_t > 45 then
-      print("score: " .. final_score, 42, ty + 16, go_t > 65 and 7 or 6)
-    end
-    if go_t > 60 then
-      local hc = final_score >= hi_score and 10 or 6
-      print("best:  " .. hi_score, 42, ty + 24, hc)
-    end
-    -- retry prompt blinks
-    if go_t > 90 and flr(go_t / 8) % 2 == 0 then
-      print("z:retry  x:title", 26, ty + 36, 6)
-    end
-  end
-}
+  }
+end
+gameover_state = make_end_state(false)
+win_state = make_end_state(true)
 
 level_intro_state = {
   update = function()
@@ -262,27 +298,120 @@ level_intro_state = {
   end,
   draw = function()
     draw_stars()
-    local ty = 50
+    ty = 50
     if li_t < 35 then
-      local pr = li_t / 35
-      ty = -12 + (1 - (1 - pr) ^ 3) * 62
+      ty = -12 + (1 - (1 - li_t/35) ^ 3) * 62
     end
-    local wx = li_t < 50 and flr(sin(li_t * 0.07) * 1.5) or 0
-    local cc = ({ 8, 9, 10, 9 })[flr(li_t * 0.08) % 4 + 1]
-    local txt = "level " .. level
-    print(txt, 45 + wx, ty + 1, 1)
-    print(txt, 44 + wx, ty, cc)
-    if li_t > 45 and level_bonus > 0 then
-      local bc = li_t < 55 and 6 or (li_t < 65 and 10 or 7)
-      print("+" .. level_bonus .. " bonus!", 36, ty + 16, bc)
+    wx = li_t < 50 and flr(sin(li_t * 0.07) * 1.5) or 0
+    cc = ({ 8, 9, 10, 9 })[flr(li_t * 0.08) % 4 + 1]
+
+    if level > MAX_LEVEL then
+      wx2 = flr(sin(li_t * 0.2) * 2)
+      ?"warning!", 45 + wx2, ty - 6, 8
+      ?"warning!", 44 + wx2, ty - 7, 7
+      ?"boss stage", 42 + wx, ty + 4, 1
+      ?"boss stage", 41 + wx, ty + 3, cc
+    else
+      txt = "level " .. level
+      ?txt, 45 + wx, ty + 1, 1
+      ?txt, 44 + wx, ty, cc
     end
     if li_t > 60 then
-      local sc = li_t < 70 and 5 or 6
-      print("score: " .. score, 38, ty + 24, sc)
+      sc = li_t < 70 and 5 or 6
+      ?"score: " .. score, 38, ty + 24, sc
     end
     if li_t > 75 then
-      local rc = li_t < 85 and 5 or (li_t < 95 and 6 or 7)
-      print("ready!", 47, ty + 36, rc)
+      rc = li_t < 85 and 5 or (li_t < 95 and 6 or 7)
+      ?"ready!", 47, ty + 36, rc
+    end
+  end
+}
+
+function build_shop_pool(pl)
+  local pool = {}
+  if pl.weapon_lv < 3 then
+    c = pl.weapon_lv == 1 and 4 or 6
+    add(pool,{id="upgrade",sp=WEAPONS[pl.weapon].w_sp,name="upg. "..pl.weapon})
+  end
+  alts = {"basic","spread","plasma","laser"}
+  for _,w in ipairs(alts) do
+    skip = w == pl.weapon
+      or (w == "spread" and pl.no_spread)
+      or (w == "basic" and not pl.no_spread)
+    if not skip then
+      add(pool,{id=w,sp=WEAPONS[w].w_sp,name=w})
+    end
+  end
+  if pl.hp < pl.max_hp then
+    add(pool,{id="health",sp=48,name="repair"})
+  end
+  for i=#pool,2,-1 do
+    local j=flr(rnd(i))+1
+    pool[i],pool[j]=pool[j],pool[i]
+  end
+  return pool
+end
+
+function apply_shop_item(item)
+  if item.id == "health" then
+    p.hp = min(p.hp+1,p.max_hp)
+  elseif item.id == "upgrade" then
+    p.weapon_lv += 1
+  else
+    p.weapon = item.id
+    p.weapon_lv = 1
+  end
+end
+
+function go_to_shop()
+  shop_cursor,shop_t = 1,0
+  local pool = build_shop_pool(p)
+  shop_choices = {}
+  for i=1,min(2,#pool) do add(shop_choices,pool[i]) end
+  state = shop_state
+end
+
+shop_state = {
+  update = function()
+    update_stars()
+    shop_t += 1
+    if btnp(0) or btnp(2) then shop_cursor = 1 end
+    if btnp(1) or btnp(3) then shop_cursor = #shop_choices end
+    if shop_t > 25 then
+      if btnp(4) then
+        item = shop_choices[shop_cursor]
+        if item then
+          apply_shop_item(item)
+          go_to_level_intro()
+        end
+      end
+      if btnp(5) then go_to_level_intro() end
+    end
+  end,
+  draw = function()
+    cls(0)
+    draw_stars()
+    ?"shop",54,4,7
+    for i,item in ipairs(shop_choices) do
+      cx = i==1 and 4 or 68
+      col = shop_cursor==i and 7 or 5
+      rectfill(cx,35,cx+56,90,1)
+      rect(cx,35,cx+56,90,col)
+      if shop_cursor==i then
+        rect(cx-1,34,cx+57,91,6)
+      end
+      spr(item.sp,cx+24,44)
+      ?item.name,cx+28-#item.name*2,58,7
+      cc = 11
+      txt = "free"
+      ?txt,cx+28-#txt*2,68,cc
+    end
+    if #shop_choices==0 then
+      ?"nothing",44,55,5
+      ?"available",40,63,5
+    end
+    if shop_t > 25 and flr(t()*2)%2==0 then
+      ?"z:buy  x:skip",32,100,6
     end
   end
 }
@@ -291,35 +420,31 @@ level_intro_state = {
 -- tab 2: player logic
 
 function init_player()
-  local s = ships[selected_ship]
+  s = ships[selected_ship]
   p = {
     tag = "player",
     x = 60,
     y = 100,
     vx = 0,
     vy = 0,
-    accel = s.accel,
-    fric = s.fric,
-    max_speed = s.max_speed,
-    sp = s.sp,
-    sp_l = s.sp_l,
-    sp_r = s.sp_r,
+    max_speed = s[6],
+    sp = s[1],
+    sp_l = s[2],
+    sp_r = s[3],
     w = 8,
     h = 8,
     hx = 2, hy = 2, hw = 4, hh = 4,
     fire_delay = 0,
-    base_fire_delay = s.fire_delay,
+    base_fire_delay = s[9],
     flash_t = 0,
-    hp = s.hp,
-    max_hp = s.hp,
+    hp = s[5],
+    max_hp = s[5],
     iframes = 0,
     max_iframes = 0,
-    weapon = s.weapon,
-    plasma_lv = s.plasma_lv,
-    laser_lv = s.laser_lv,
-    thrusting = false,
-    t_cols = s.t_cols,
-    resources = 0,
+    weapon = s[4],
+    weapon_lv = 1,
+    no_spread = s[10],
+    t_cols = s[11],
     dead = false,
     -- entity update: runs movement/input, or ticks the death timer
     update = function(self)
@@ -343,30 +468,41 @@ function init_player()
       end
     end
   }
+
+  -- Inject Archetype Hooks
+  p.archetype = selected_ship
+  if p.archetype == 1 then
+    p.iframe_mod = 20        -- Added to standard iframes on hit
+  elseif p.archetype == 2 then
+    p.base_fire_delay = 4    -- Hyper-fast firing rate
+    p.spray_variance = 0.5   -- Chaotic firing cone accuracy offset
+  elseif p.archetype == 3 then
+    p.shield = 1             -- 1 = active, 0 = broken
+    p.shield_timer = 0       -- Tracks shield regeneration frames
+    p.always_pierce = true   -- Forces weaponry to pass through enemies
+  end
+
   -- insert at front so player draws beneath enemies/bullets
   add(entities, p, 1)
 end
 
 function update_player(obj)
-  local ax, ay = 0, 0
+  local dx, dy = 0, 0
 
-  if btn(0) then ax -= obj.accel end
-  if btn(1) then ax += obj.accel end
-  if btn(2) then ay -= obj.accel end
-  if btn(3) then ay += obj.accel end
+  if btn(0) then dx -= 1 end
+  if btn(1) then dx += 1 end
+  if btn(2) then dy -= 1 end
+  if btn(3) then dy += 1 end
 
-  if ax ~= 0 and ay ~= 0 then
-    ax *= 0.707
-    ay *= 0.707
+  -- normalise diagonal so speed is equal in all directions
+  if dx ~= 0 and dy ~= 0 then
+    dx *= 0.707
+    dy *= 0.707
   end
 
-  obj.thrusting = ax ~= 0 or ay ~= 0
-
-  if level >= obj.laser_lv then
-    obj.weapon = "laser"
-  elseif level >= obj.plasma_lv then
-    obj.weapon = "plasma"
-  end
+  -- 1:1 direct movement – no inertia, no drift
+  obj.vx = dx * obj.max_speed
+  obj.vy = dy * obj.max_speed
 
   -- shoot
   if (btn(4) or btn(5)) and obj.fire_delay <= 0 then
@@ -378,26 +514,11 @@ function update_player(obj)
   if obj.flash_t > 0 then obj.flash_t -= 1 end
   if obj.iframes > 0 then obj.iframes -= 1 end
 
-  -- friction drags momentum; new input applied at full strength
-  obj.vx = obj.vx * obj.fric + ax
-  obj.vy = obj.vy * obj.fric + ay
-
-  -- clamp to max speed
-  local v = sqrt(obj.vx * obj.vx + obj.vy * obj.vy)
-  if v > obj.max_speed then
-    obj.vx = (obj.vx / v) * obj.max_speed
-    obj.vy = (obj.vy / v) * obj.max_speed
-  end
-
-  -- snap micro-drift to zero when no input
-  if abs(obj.vx) < 0.05 then obj.vx = 0 end
-  if abs(obj.vy) < 0.05 then obj.vy = 0 end
-
   obj.x += obj.vx
   obj.y += obj.vy
 
   -- thruster particles: spawn every few frames when moving
-  if obj.thrusting and flr(t() * 60) % 2 == 0 then
+  if (ax ~= 0 or ay ~= 0) and tf(60,2) == 0 then
     burst_thruster(obj.x + 4, obj.y + 8, obj.t_cols, 1)
   end
 
@@ -406,54 +527,84 @@ function update_player(obj)
   if obj.x > 120 then obj.x = 120; obj.vx = 0 end
   if obj.y < 10  then obj.y = 10;  obj.vy = 0 end
   if obj.y > 120 then obj.y = 120; obj.vy = 0 end
+
+  if obj.shield_flash_t and obj.shield_flash_t > 0 then obj.shield_flash_t -= 1 end
+
+  -- Heavy Shield Regeneration Cooldown Loop
+  if obj.archetype == 3 and obj.shield == 0 then
+    obj.shield_timer += 1
+    if obj.shield_timer >= 600 then -- 10 seconds at 60fps
+      obj.shield = 1
+      obj.shield_timer = 0
+      sfx(3) -- Play structural charge audio feedback
+    end
+  end
+end
+
+function burst_muzzle(x, y, btype)
+  if btype == "basic" then
+    add(entities, make_particle(x, y, {
+      cols={9,10}, ang=0.25, ang_r=0.25,
+      spd=1+rnd(1), life=10, drag=0.94, fade=true
+    }))
+  elseif btype == "plasma" then
+    for i=1,4 do
+      add(entities, make_particle(x, y, {
+        cols=PLASMA_C, ang=0.25, ang_r=0.5,
+        spd=1+rnd(1.5), life=10+rnd(8), drag=0.92, fade=true
+      }))
+    end
+  elseif btype == "laser" then
+    for i=1,3 do
+      add(entities, make_particle(x, y-2, {
+        cols=EMBER_C, ang=0.25, ang_r=0.35,
+        spd=2+rnd(2), life=15+rnd(10), drag=0.92, fade=true
+      }))
+    end
+  elseif btype == "spread" then
+    burst_sparks(x, y, 8, SPARK_C)
+  end
 end
 
 function fire_bullet(obj)
   local btype = obj.weapon
+  local lv = obj.weapon_lv
+  local mx, my = obj.x + 4, obj.y - 2
   if btype == "basic" then
-    local b = make_bullet(obj, "basic")
-    add(entities, b)
-    add(bullets, b)
-    add(entities, make_particle(obj.x + 4, obj.y - 2, {
-      cols = {9, 10}, ang = 0.25, ang_r = 0.25,
-      spd = 1 + rnd(1), life = 10, drag = 0.94, fade = true
-    }))
+    local offsets = lv >= 3 and {-4,0,4} or lv == 2 and {-3,3} or {0}
+    for _,ox in ipairs(offsets) do
+      local b = make_bullet(obj,"basic") b.x += ox
+      add(entities,b) add(bullets,b)
+    end
+  elseif btype == "spread" then
+    local vxs = lv >= 3 and {-4,-2,0,2,4} or lv == 2 and {-3.5,0,3.5} or {-2.5,0,2.5}
+    for _,vx in ipairs(vxs) do
+      local b = make_bullet(obj,"spread") b.vx = vx
+      add(entities,b) add(bullets,b)
+    end
   elseif btype == "plasma" then
-    local b1 = make_bullet(obj, "plasma")
-    local b2 = make_bullet(obj, "plasma")
-    b1.x -= 3
-    b2.x += 3
-    add(entities, b1) add(bullets, b1)
-    add(entities, b2) add(bullets, b2)
-    for i = 1, 2 do
-      add(entities, make_particle(obj.x + 4, obj.y - 2, {
-        cols = {11, 3}, ang = 0.25, ang_r = 0.25,
-        spd = 1 + rnd(1), life = 10 + rnd(10), drag = 0.94, fade = true
-      }))
+    local offsets = lv >= 3 and {-6,-2,2,6} or lv == 2 and {-4,0,4} or {-4,4}
+    for _,ox in ipairs(offsets) do
+      local b = make_bullet(obj,"plasma") b.x += ox
+      add(entities,b) add(bullets,b)
     end
   elseif btype == "laser" then
-    local b = make_bullet(obj, "laser")
-    add(entities, b) add(bullets, b)
-    shake_screen(1, 4)
-    for i = 1, 3 do
-      add(entities, make_particle(obj.x + 4, obj.y - 4, {
-        cols = {8, 9, 10}, ang = 0.25, ang_r = 0.35,
-        spd = 2 + rnd(2), life = 15 + rnd(10), drag = 0.92, fade = true
-      }))
+    local offsets = lv >= 3 and {-4, 4} or {0}
+    for _, ox in ipairs(offsets) do
+      local b = make_bullet(obj, "laser")
+      b.x += ox
+      add(entities, b)
+      add(bullets, b)
     end
+    shake_screen(lv >= 2 and 2 or 1, lv >= 2 and 6 or 4)
   end
-  if btype == "plasma" then
-    play_sound(4)
-  elseif btype == "laser" then
-    play_sound(5)
-  else
-    play_sound(6)
-  end
+  burst_muzzle(mx,my,btype)
+  sfx(WEAPONS[btype].sfx)
 end
 
 function draw_player(obj)
-  local s = obj.sp
-  local dx = 0
+  s = obj.sp
+  dx = 0
   if obj.vx < -0.2 then
     s = obj.sp_l
     dx = -1
@@ -463,9 +614,9 @@ function draw_player(obj)
   end
 
   if obj.iframes > 0 then
-    local ni = obj.iframes / max(1, obj.max_iframes)
+    ni = obj.iframes / max(1, obj.max_iframes)
     -- quadratic ease-in: slow blink at start, fast blink near end
-    local period = max(2, flr(ni * ni * 12) + 2)
+    period = max(2, flr(ni * ni * 12) + 2)
     if (obj.iframes % period) < flr(period / 2) then
       return
     end
@@ -477,12 +628,23 @@ function draw_player(obj)
   if obj.flash_t > 0 then
     draw_muzzle_flash(obj, dx)
   end
+
+  -- Render Heavy Shield Aura Bubble
+  if obj.archetype == 3 and obj.shield > 0 then
+    -- Pulsates slightly using time functions
+    local rad = 6 + flr(sin(t() * 3) * 1.5)
+    circ(obj.x + 3 + dx, obj.y + 4, rad, 12) -- Left half sub-pixel composite
+    circ(obj.x + 4 + dx, obj.y + 4, rad, 12) -- Right half sub-pixel composite
+  elseif obj.archetype == 3 and obj.shield_flash_t and obj.shield_flash_t > 0 then
+    spr(30, obj.x + dx, obj.y)
+  end
 end
 
 function draw_thruster(obj, dx)
-  local spd = sqrt(obj.vx * obj.vx + obj.vy * obj.vy)
-  local fh = 4 + flr(spd * 4) + flr(t() * 16) % 2
-  local fn = flr(t() * 16) % 4
+  spd = sqrt(obj.vx * obj.vx + obj.vy * obj.vy)
+  t16 = flr(t() * 16)
+  fh = 4 + flr(spd * 4) + t16 % 2
+  fn = t16 % 4
 
   -- swap colors for unique thruster look
   pal(8, obj.t_cols[1])
@@ -496,21 +658,19 @@ function draw_thruster(obj, dx)
 end
 
 function draw_muzzle_flash(obj, dx)
-  local m_sp = S_MUZZLE
-  if obj.weapon == "plasma" then m_sp = S_MUZZLE_PLASMA end
-  if obj.weapon == "laser" then m_sp = S_MUZZLE_LASER end
+  m_sp=WEAPONS[obj.weapon].muz
 
-  local flip_x = obj.flash_t % 2 == 0
-  local offset_y = flr(rnd(2))
+  flip_x = obj.flash_t % 2 == 0
+  offset_y = flr(rnd(2))
   spr(m_sp, obj.x + dx, obj.y - 6 + offset_y, 1, 1, flip_x)
 end
 
 function draw_player_death(obj)
   if death_timer <= 0 then return end
-  local prog = 1 - death_timer / 120
-  local sep = flr(prog * prog * 18)
-  local twist = flr(sin(prog * 2.5) * sep * 0.4)
-  local hot = ({ 9, 10, 9, 8, 7 })[flr(t() * 14) % 5 + 1]
+  prog = 1 - death_timer / 120
+  sep = flr(prog * prog * 18)
+  twist = flr(sin(prog * 2.5) * sep * 0.4)
+  hot = ({ 9, 10, 9, 8, 7 })[tf(14,5) + 1]
   for c = 0, 15 do
     pal(c, hot)
   end
@@ -524,9 +684,24 @@ function draw_player_death(obj)
 end
 
 function damage_player(frames)
+  -- Heavy Shield Block Interception
+  if p.archetype == 3 and p.shield > 0 then
+    p.shield = 0
+    p.shield_timer = 0
+    p.iframes = frames -- Grant standard hit invulnerability duration
+    p.max_iframes = frames
+    p.shield_flash_t = 15
+    sfx(3) -- Play distinct impact audio
+    burst_sparks(p.x + 4, p.y + 4, 12, PLASMA_C) -- Visual energy ring pop
+    return
+  end
+
+  -- Standard Damage Path
   p.hp -= 1
-  p.iframes = frames
-  p.max_iframes = frames
+  -- Balanced Ship Extended Iframe Buff
+  p.iframes = frames + (p.iframe_mod or 0)
+  p.max_iframes = frames + (p.iframe_mod or 0)
+  
   if p.hp <= 0 then player_death() end
 end
 
@@ -537,53 +712,40 @@ function player_death()
   death_flash_t = 15
   shake_screen(8, 50)
   local cx, cy = p.x + 4, p.y + 4
-  add(entities, make_player_explosion(cx, cy))
+  add(entities, make_explosion(cx, cy, true))
+  add(entities, make_shockwave(cx, cy, true))
   for i = 1, 3 do
     add(entities, make_explosion(cx + rnd(20) - 10, cy + rnd(20) - 10))
   end
-  burst_sparks(cx, cy, 24, {7, 9, 10})
-  burst_smoke(cx, cy, 14, {5, 6, 13})
+  burst_sparks(cx, cy, 24, SPARK_C)
+  burst_smoke(cx, cy, 14, SMOKE_C)
   burst_embers(cx, cy, 10)
   for i = 1, 20 do
     add(entities, make_debris(cx, cy))
   end
-  play_sound(2)
+  sfx(2)
+  hit_stop_t = 3
 end
 
 -->8
 -- tab 3: entities
+-- boss phase data: spd,wide,phc,rate,nbul,sprd per phase
+BSPD,BWIDE,BPHC,BRATE,BNBUL,BSPRD={},{},{},{},{},{}
+for i,r in ipairs(split("0.02:30:11:60:1:0,0.035:30:9:45:3:0.08,0.05:40:8:30:5:0.07")) do
+  local s=split(r,":",true)
+  BSPD[i],BWIDE[i],BPHC[i],BRATE[i],BNBUL[i],BSPRD[i]=s[1],s[2],s[3],s[4],s[5],s[6]
+end
 
 -- base entity constructor: creates a table with shared fields
 -- and default update/draw stubs that call self:move() / self:render().
 -- specialized constructors call this, then override what they need.
 function make_ent(tag, x, y)
-  local e = {}
-  e.tag = tag
-  e.x = x
-  e.y = y
-  e.dead = false
-  -- default stubs (overridden per-type)
-  e.move = function(self) end
-  e.render = function(self) end
-  -- colon-style dispatch: self is the entity table
-  e.update = function(self)
-    self:move()
-    if self.dead then return end
-  end
-  e.draw = function(self)
-    self:render()
-  end
-  return e
-end
-
-function move_straight(e)
-  -- intentionally empty: vy alone moves enemy straight down
-end
-
-function move_diver(e)
-  if flr(t() * 60) % 4 == 0 then
-    burst_thruster(e.x + 4, e.y, { 8, 9, 7 }, -1)
-  end
+  return {
+    tag=tag, x=x, y=y, dead=false,
+    -- Just check if they exist before calling
+    update=function(s) if s.move then s:move() end end,
+    draw=function(s) if s.render then s:render() end end
+  }
 end
 
 function move_zigzag(e)
@@ -591,23 +753,29 @@ function move_zigzag(e)
   e.x = mid(0, e.ox + 30 * sin(e.phase), 120)
 end
 
--- chaser: nudge x toward the player each frame
-function move_chase(e)
-  local dx = p.x - e.x
-  e.x += dx * 0.025
-  e.x = mid(0, e.x, 120)
-end
 
--- shooter: counts down and fires a bullet aimed at the player
-function move_shooter(e)
-  e.shoot_t -= 1
-  if e.shoot_t <= 0 then
-    e.shoot_t = 55
+-- fire n bullets spread around aimed direction (da in pico-8 turns)
+function boss_fire(e, n, da)
+  local bx = (p.x+4)-(e.x+16)
+  local by = (p.y+4)-(e.y+16)
+  local d = sqrt(bx*bx+by*by)
+  if d==0 then d=1 end
+  bx = bx/d*1.4
+  by = by/d*1.4
+  local half = (n-1)/2
+  for i=0,n-1 do
+    local off = (i-half)*da
+    local cs = cos(off)
+    local sn = sin(off)
     local eb = make_enemy_bullet(e)
+    eb.x = e.x+14
+    eb.y = e.y+28
+    eb.vx = bx*cs - by*sn
+    eb.vy = bx*sn + by*cs
     add(entities, eb)
     add(ebullets, eb)
-    play_sound(7)
   end
+  sfx(7)
 end
 
 function apply_pal(c3,c11,c12,c7,c6)
@@ -617,7 +785,7 @@ end
 function draw_flash(e)
   if e.flash and e.flash>0 then
     for c=0,15 do pal(c,7) end
-    spr(e.sp+flr(t()*4)%2,e.x,e.y)
+    spr(e.sp+tf(4,2),e.x,e.y)
     pal()
     e.flash-=1
   end
@@ -625,14 +793,13 @@ end
 
 enemy_types = {
   basic = {
-    gem_tier = 1,
-    sp = S_ENEMY, pts = 10, move = move_straight,
+
+    sp = S_ENEMY, pts = 10,
     mk_x = function() return rnd(120) end,
     mk_vy = function() return 1 + rnd(1) end,
-    extra = function(e) end
   },
   zigzag = {
-    gem_tier = 1,
+
     sp = S_ENEMY2, pts = 25, move = move_zigzag,
     mk_x = function() return 30 + rnd(60) end,
     mk_vy = function() return 0.8 + rnd(0.4) end,
@@ -641,48 +808,60 @@ enemy_types = {
   -- spawns directly above the player and dives fast
   -- red/fiery palette: aggressive, danger signal
   diver = {
-    gem_tier = 1,
-    sp = S_ENEMY, pts = 20, move = move_diver,
+
+    sp = S_ENEMY, pts = 20,
+    move = function(e) if tf(60,4)==0 then burst_thruster(e.x+4,e.y,{8,9,7},-1) end end,
     mk_x = function() return p.x end,
     mk_vy = function() return 1.8 + rnd(0.8) end,
-    extra = function(e) end,
     draw_fn = function(en)
       apply_pal(8,9,8,10,9)
-      spr(S_ENEMY + flr(t() * 4) % 2, en.x, en.y)
+      spr(S_ENEMY + tf(4,2), en.x, en.y)
       pal()
     end
   },
   -- steers toward the player horizontally
   -- purple/indigo palette: eerie, alien
   chaser = {
-    gem_tier = 2,
-    sp = S_ENEMY2, pts = 30, move = move_chase,
+    sp = S_ENEMY2, pts = 30,
+    move = function(e)
+      local dx = p.x - e.x
+      e.x += dx * 0.025
+      e.x = mid(0, e.x, 120)
+    end,
     mk_x = function() return rnd(120) end,
     mk_vy = function() return 0.6 + rnd(0.4) end,
-    extra = function(e) end,
     draw_fn = function(en)
       apply_pal(2,14,13,14,13)
-      spr(S_ENEMY2 + flr(t() * 4) % 2, en.x, en.y)
+      spr(S_ENEMY2 + tf(4,2), en.x, en.y)
       pal()
     end
   },
   -- slow-moving enemy that fires aimed shots
   -- toxic green palette, pulses white when about to fire
   shooter = {
-    gem_tier = 2,
-    sp = S_ENEMY, pts = 40, move = move_shooter,
+    sp = S_ENEMY, pts = 40,
+    move = function(e)
+      e.shoot_t -= 1
+      if e.shoot_t <= 0 then
+        e.shoot_t = 55
+        local eb = make_enemy_bullet(e)
+        add(entities, eb)
+        add(ebullets, eb)
+        sfx(7)
+      end
+    end,
     mk_x = function() return 10 + rnd(100) end,
     mk_vy = function() return 0.4 + rnd(0.3) end,
     extra = function(e) e.shoot_t = 40 end,
     draw_fn = function(en)
       local charging = en.shoot_t < 18
       if charging then
-        local f = flr(t() * 12) % 2 == 0
+        local f = tf(12,2) == 0
         apply_pal(f and 7 or 10, f and 7 or 10, 10, 7, 10)
       else
         apply_pal(3,10,11,10,11)
       end
-      spr(S_ENEMY + flr(t() * 4) % 2, en.x, en.y)
+      spr(S_ENEMY + tf(4,2), en.x, en.y)
       pal()
       -- charge ring glows outward when near firing
       if charging then
@@ -692,23 +871,106 @@ enemy_types = {
     end
   },
   tank = {
-    gem_tier = 3,
-    sp = S_ENEMY3, pts = 50, move = move_straight,
+
+    sp = S_ENEMY3, pts = 50,
     mk_x = function() return 20 + rnd(80) end,
     mk_vy = function() return 0.3 + rnd(0.2) end,
     extra = function(e) e.hp = 4 end,
     draw_fn = function(en)
-      spr(S_ENEMY3 + flr(t() * 4) % 2, en.x, en.y)
+      spr(S_ENEMY3 + tf(4,2), en.x, en.y)
     end
   },
   spinner = {
-    gem_tier = 2,
+
     sp = S_ENEMY4, pts = 40, move = move_zigzag,
     mk_x = function() return rnd(120) end,
     mk_vy = function() return 1 + rnd(0.5) end,
     extra = function(e) e.ox = e.x e.phase = rnd(1) end,
     draw_fn = function(en)
-      spr(S_ENEMY4 + flr(t() * 16) % 2, en.x, en.y)
+      spr(S_ENEMY4 + tf(16,2), en.x, en.y)
+    end
+  },
+  -- bomber: enters from a random side, sweeps diagonally across the screen
+  -- uses all 4 sprite frames (40-43) for a smooth 4-frame animation
+  bomber = {
+
+    sp = S_ENEMY5, pts = 35,
+    mk_x = function() return 0 end,
+    mk_vy = function() return 0.6 + rnd(0.4) end,
+    extra = function(e)
+      -- spawn off either side; vx sweeps toward opposite side
+      if rnd(2) > 1 then
+        e.x  = -8
+        e.vx = 0.8 + rnd(0.5)
+      else
+        e.x  = 128
+        e.vx = -(0.8 + rnd(0.5))
+      end
+    end,
+    -- apply horizontal velocity and expire when fully off either side
+    move = function(e)
+      e.x += e.vx
+      if e.x > 136 then e.x = -8
+      elseif e.x < -16 then e.x = 136 end
+    end,
+    draw_fn = function(en)
+      spr(S_ENEMY5 + tf(8,4), en.x, en.y)
+    end
+  },
+  boss = {
+
+    sp = 64, pts = 500,
+    mk_x = function() return 48 end,
+    mk_vy = function() return 0.2 end,
+    extra = function(e)
+      e.hp = 150
+      e.max_hp = 150
+      e.is_boss = true
+      e.w = 32
+      e.h = 32
+      e.hx = 4
+      e.hy = 4
+      e.hw = 24
+      e.hh = 24
+      e.phase = 0
+      e.combat_phase = 1
+      e.shoot_t = 60
+      boss_ent = e
+    end,
+    move = function(e)
+      -- phase transitions on hp thresholds
+      if e.combat_phase<2 and e.hp<=100 then
+        e.combat_phase=2 shake_screen(4,15) e.flash=8
+      end
+      if e.combat_phase<3 and e.hp<=50 then
+        e.combat_phase=3 shake_screen(6,20) e.flash=8
+      end
+      -- oscillation: faster and wider each phase
+      local spd=BSPD[e.combat_phase]
+      local wide=BWIDE[e.combat_phase]
+      e.phase += spd
+      e.x = 48 + sin(e.phase)*wide
+      if e.y > 10 then e.y=10; e.vy=0 end
+      -- shoot countdown
+      e.shoot_t -= 1
+      if e.shoot_t <= 0 then
+        e.shoot_t=BRATE[e.combat_phase]
+        boss_fire(e,BNBUL[e.combat_phase],BSPRD[e.combat_phase])
+      end
+    end,
+    draw_fn = function(en)
+      -- handle flash here: draw_flash() uses 8x8 spr, wrong for 32x32 boss
+      local do_flash = en.flash and en.flash>0
+      if do_flash then
+        for c=0,15 do pal(c,7) end
+        en.flash -= 1
+      elseif en.combat_phase==3 then
+        if tf(8,2)==0 then pal(10,8) pal(9,8) end
+      elseif en.combat_phase==2 then
+        pal(10,9)
+      end
+      sspr(tf(4,4)*32,32,32,32,en.x,en.y)
+      pal()
     end
   }
 }
@@ -727,7 +989,6 @@ function make_hunter()
   e.w = 8
   e.h = 8
   e.pts = 60
-  e.gem_tier = 3
   e.patrol_y = 10 + rnd(20)
   -- Y to hold during patrol
 
@@ -757,10 +1018,14 @@ function make_hunter()
     -- accelerate downward
     if self.vy > 4 then self.vy = 4 end
     self.y += self.vy
-    if flr(t() * 60) % 3 == 0 then
+    if tf(60,3) == 0 then
       burst_thruster(self.x + 4, self.y, { 10, 9, 8 }, -1)
     end
-    if self.y > 128 then self.dead = true end
+    if self.y > 128 then
+      self.y = -8
+      self.vy = 0
+      self.state = self.patrol
+    end
   end
 
   -- start in patrol state
@@ -779,11 +1044,11 @@ function make_hunter()
     else
       apply_pal(4,14,4,14,4)
     end
-    spr(S_ENEMY3 + flr(t() * 4) % 2, self.x, self.y)
+    spr(S_ENEMY3 + tf(4,2), self.x, self.y)
     pal()
     -- draw a targeting reticle while patrolling
     if not diving then
-      local blink = flr(t() * 6) % 2 == 0
+      local blink = tf(6,2) == 0
       if blink then
         line(self.x + 4, self.y + 9, self.x + 4, self.y + 14, 14)
       end
@@ -800,32 +1065,93 @@ function spawn_hunter()
   add(enemies, e)
 end
 
+function load_wave(ws)
+  spawn_queue={}
+  local delay=0
+  for e in all(split(ws)) do
+    local s=split(e,":")
+    add(spawn_queue,{t=s[1],x=tonum(s[2]),d=delay})
+    delay+=30
+  end
+end
+
+function trigger_spawn(t,x)
+  if t=="hunter" then spawn_hunter() else spawn_enemy(t,x) end
+end
+
 function make_bullet(obj, btype)
-  local s = S_BULLET
-  local v = -4
-  if btype == "plasma" then
-    s = S_BULLET_PLASMA v = -5
-  end
-  if btype == "laser" then
-    s = S_BULLET_LASER v = -6
-  end
+  local w = WEAPONS[btype]
+  local s = w.b_sp
+  local v = w.v
+  local dmg = w.dmg
   local e = make_ent("bullet", obj.x, obj.y - 4)
   e.sp = s
   e.vy = v
+  e.vx = 0
   e.w = 8
   e.h = 8
   e.hx = 2
   e.hw = 4
   e.btype = btype
-  -- move: fly upward, expire when off-screen
+  e.dmg = dmg
+  e.hp_left = dmg
+  e.pierce = btype == "laser"
+  -- move: fly upward, apply vx spread, trail particles, expire when off-screen
   e.move = function(self)
-    self.y += self.vy
-    if self.y < -8 then self.dead = true end
+      self.x += self.vx
+      self.y += self.vy
+      if self.btype == "plasma" and flr(self.y) % 2 == 0 then
+        add(entities, make_particle(self.x + 3, self.y + 4, {
+          cols = {12, 13, 7}, ang = 0.75, ang_r = 0.1,
+          spd = 0.5 + rnd(0.5), life = 6, fade = true
+        }))
+      elseif self.btype == "laser" and flr(self.y) % 2 == 0 then
+        add(entities, make_particle(self.x + 3, self.y + 4, {
+          cols = {7, 10, 9}, ang = 0.75, ang_r = 0.1,
+          spd = 1 + rnd(0.5), life = 8, fade = true, trail = true
+        }))
+      end
+      if self.y < -8 then self.dead = true end
   end
-  -- render: two-frame animation driven by t()
-  e.render = function(self)
-    spr(self.sp + flr(t() * 12) % 2, self.x, self.y)
+  if btype == "plasma" then
+    e.render = function(self)
+      local cx = self.x + 4
+      local cy = self.y + 4
+      local r = 2 + tf(12,2)
+      circfill(cx, cy, r, 12)
+      circfill(cx, cy, 1, 13)
+      pset(cx, cy, 7)
+    end
+  elseif btype == "spread" then
+    e.render = function(self)
+      pset(self.x + 3, self.y,     7)
+      pset(self.x + 4, self.y,     7)
+      pset(self.x + 3, self.y + 1, 10)
+      pset(self.x + 4, self.y + 1, 10)
+      pset(self.x + 3, self.y + 2, 9)
+      pset(self.x + 4, self.y + 2, 9)
+      pset(self.x + 3, self.y + 3, 8)
+      pset(self.x + 4, self.y + 3, 8)
+    end
+  else
+    e.render = function(self)
+      spr(self.sp + tf(12,2), self.x, self.y)
+    end
   end
+
+  -- Apply Archetype Weapon Modifications
+  if obj.tag == "player" then
+    -- Inject Assault ship firing spread inaccuracy
+    if obj.spray_variance then
+      e.vx += rnd(obj.spray_variance) - (obj.spray_variance * 0.5)
+    end
+    -- Inject Heavy ship persistent ammunition piercing traits
+    if obj.always_pierce then
+      e.pierce = true
+      e.hp_left = dmg + 1 -- Allows baseline projectiles to slide through multiple small targets
+    end
+  end
+
   return e
 end
 
@@ -835,35 +1161,49 @@ function make_enemy_bullet(src)
   local dy = (p.y + 4) - (src.y + 4)
   local d = sqrt(dx * dx + dy * dy)
   if d == 0 then d = 1 end
-  local spd = 2.2
+  local spd = 1.4
   local e = make_ent("ebullet", src.x + 1, src.y + 8)
   e.vx = (dx / d) * spd
   e.vy = (dy / d) * spd
-  e.w = 4
-  e.h = 4
-  -- move: travel in aimed direction, expire when off-screen
+  e.w = 6
+  e.h = 6
+  -- move: travel in aimed direction, leave bright trail, expire when off-screen
   e.move = function(self)
     self.x += self.vx
     self.y += self.vy
+    add(entities, make_particle(self.x + 2, self.y + 2, {
+      cols = {10, 9, 8}, ang = 0.75, ang_r = 0.25,
+      spd = 0.6, life = 8, fade = true
+    }))
     if self.y > 136 or self.y < -16
         or self.x < -16 or self.x > 144 then
       self.dead = true
     end
   end
-  -- render: 2x2 pixel bolt, hot-core color ramp
+  -- render: bright 3x3 cross with hot-white core
   e.render = function(self)
-    pset(self.x, self.y, 8)
-    pset(self.x + 1, self.y, 9)
-    pset(self.x, self.y + 1, 9)
-    pset(self.x + 1, self.y + 1, 10)
+    local cx = self.x + 2
+    local cy = self.y + 2
+    -- outer arms (orange)
+    pset(cx,     cy - 2, 9)
+    pset(cx,     cy + 2, 9)
+    pset(cx - 2, cy,     9)
+    pset(cx + 2, cy,     9)
+    -- inner ring (yellow)
+    pset(cx,     cy - 1, 10)
+    pset(cx,     cy + 1, 10)
+    pset(cx - 1, cy,     10)
+    pset(cx + 1, cy,     10)
+    -- hot white core
+    pset(cx, cy, 7)
   end
   return e
 end
 
-function spawn_enemy(type_name)
+function spawn_enemy(type_name,ox)
   local td = enemy_types[type_name]
   local dfn = td.draw_fn
-  local e = make_ent("enemy", td.mk_x(), -8)
+  local e = make_ent("enemy",(ox and ox>0) and ox or td.mk_x(),-8)
   e.sp = td.sp
   e.vy = td.mk_vy()
   e.w = 8
@@ -874,9 +1214,8 @@ function spawn_enemy(type_name)
   -- function here because it was authored for the old dot style.
   e.move = function(self)
     self.y += self.vy
-    td.move(self)
-    -- delegates to the enemy_types steering fn
-    if self.y > 128 then self.dead = true end
+    if td.move then td.move(self) end
+    if self.y > 128 then self.y = -8 end
   end
   -- render: use the type's custom draw_fn if present, else
   -- fall back to the animated sprite default.
@@ -884,66 +1223,103 @@ function spawn_enemy(type_name)
     if dfn then
       dfn(self)
     else
-      spr(self.sp + flr(t() * 4) % 2, self.x, self.y)
+      spr(self.sp + tf(4,2), self.x, self.y)
     end
     draw_flash(self)
   end
-  td.extra(e)
-  e.gem_tier = td.gem_tier or 1
+  if td.extra then td.extra(e) end
   add(entities, e)
   add(enemies, e)
 end
 
-function make_explosion(x, y)
-  local e = make_ent("explosion", x, y)
-  e.t = 12
-  -- move: count down the timer, mark dead when done
-  -- 'self' here refers to the explosion table (e)
+function make_explosion(x, y, big)
+  local sc,cx,cy,nc,mh,rb,rr,t1,t2 = big and 1.5 or 1, big and x or x+4, big and y or y+4, big and 30 or 12, big and 16 or 10, big and 10 or 5, big and 4 or 3, big and 0.2 or 0.3, big and 0.5 or 0.6
+  for i=1,nc do
+    local p = make_ent("particle", cx, cy)
+    local mult = (3 + rnd(4)) * sc
+    p.sx = (rnd(1) - 0.5) * mult
+    p.sy = (rnd(1) - 0.5) * mult
+    p.h = 0
+    p.max_h = (10 + rnd(20)) * sc
+    p.r = 1 + rnd(3)
+    p.move = function(self)
+      self.x += self.sx
+      self.y += self.sy
+      self.sx *= 0.9
+      self.sy *= 0.9
+      self.h += 1
+      if self.h > self.max_h then self.dead = true end
+    end
+    p.render = function(self)
+      local f = self.h / self.max_h
+      local c = 7
+      if f > 0.2 then c = 10 end
+      if f > 0.5 then c = 9 end
+      if f > 0.8 then c = 5 end
+      local curr_r = self.r * (1 - f)
+      if curr_r > 0 then
+        circfill(self.x, self.y, curr_r, c)
+      end
+    end
+    add(entities, p)
+  end
+  local e = make_ent("explosion", cx, cy)
+  e.h = 0
+  e.max_h = mh
+  e.r = rb + rnd(rr)
   e.move = function(self)
-    self.t -= 1
-    if self.t <= 0 then self.dead = true end
+    self.h += 1
+    if self.h > self.max_h then self.dead = true end
   end
   e.render = function(self)
-    local s = S_EXPL_1
-    if self.t < 4 then s = S_EXPL_3
-    elseif self.t < 8 then s = S_EXPL_2
-    end
-    spr(s, self.x, self.y)
-    local cx, cy = self.x + 4, self.y + 4
-    if self.t >= 10 then pset(cx, cy, 7) end
-    local prog = (12 - self.t) / 12
-    local r = flr(prog * (2 - prog) * 14)
-    if r > 0 then
-      local c1 = self.t > 8 and 10 or (self.t > 4 and 9 or 8)
-      local c2 = self.t > 8 and 9 or (self.t > 4 and 8 or 5)
-      circ(cx, cy, r, c1)
-      circ(cx, cy, r + 1, c2)
+    local f = self.h / self.max_h
+    local c = 7
+    if f > t1 then c = 10 end
+    if f > t2 then c = 9 end
+    local curr_r = self.r * (1 - f)
+    if curr_r > 0 then
+      circfill(self.x, self.y, curr_r, c)
     end
   end
   return e
 end
 
-function make_player_explosion(cx, cy)
-  local e = make_ent("explosion", cx, cy)
-  e.t = 50
+function make_shockwave(x, y, big)
+  local e = make_ent("shockwave", x, y)
+  e.h     = 0
+  e.max_h = big and 22 or 16
+  e.max_r = big and 28 or 18
+  e.move = function(self)
+    self.h += 1
+    if self.h > self.max_h then self.dead = true end
+  end
+  e.render = function(self)
+    local f = self.h / self.max_h
+    local r = flr(self.max_r * f)
+    local c = 7
+    if f > 0.3  then c = 10 end
+    if f > 0.6  then c = 9  end
+    if f > 0.85 then c = 4  end
+    if r > 0 then
+      circ(self.x, self.y, r, c)
+      if f < 0.5 and r > 1 then
+        circ(self.x, self.y, r - 1, c)
+      end
+    end
+  end
+  return e
+end
+
+function make_hit_flash(x, y)
+  local e = make_ent("fx", x, y)
+  e.t = 4
   e.move = function(self)
     self.t -= 1
     if self.t <= 0 then self.dead = true end
   end
   e.render = function(self)
-    if self.t > 20 then
-      spr(S_EXPL_BIG, self.x - 8, self.y - 8, 2, 2)
-    end
-    local r = flr((50 - self.t) * 2)
-    local r2 = flr((50 - self.t) * 1.2)
-    if self.t > 28 then
-      circ(self.x, self.y, r, 10)
-      circ(self.x, self.y, r + 3, 9)
-      if r2 > 0 then circ(self.x, self.y, r2, 7) end
-    elseif self.t > 8 then
-      circ(self.x, self.y, r, 5)
-      circ(self.x, self.y, r2, 1)
-    end
+    local c = self.t > 2 and 7 or 10
+    rectfill(self.x - 2, self.y - 2, self.x + 2, self.y + 2, c)
   end
   return e
 end
@@ -959,54 +1335,11 @@ function make_popup(x, y, pts)
   end
   e.render = function(self)
     local c = self.t > 13 and 7 or (self.t > 6 and 6 or 5)
-    print("+" .. self.pts, self.x, self.y, c)
+    ?"+" .. self.pts, self.x, self.y, c
   end
   return e
 end
 
--- helper: add a gem to both entity list and gems sub-list
-function spawn_gem(x, y, tier)
-  local g = make_gem(x, y, tier)
-  add(entities, g)
-  add(gems, g)
-end
-
-function make_gem(x, y, tier)
-  local val = tier == 3 and 4 or (tier == 2 and 2 or 1)
-  local e = make_ent("gem", x, y)
-  e.w = 8
-  e.h = 8
-  e.hx = 1
-  e.hy = 1
-  e.hw = 6
-  e.hh = 6
-  e.vy = 0.5
-  e.tier = tier
-  e.value = val
-  e.move = function(self)
-    local dx = p.x + 4 - self.x
-    local dy = p.y + 4 - self.y
-    local dist = sqrt(dx * dx + dy * dy)
-    if stage_completing or dist < 24 then
-      local spd = stage_completing and 3 or (24 - dist) / 24 * 2
-      self.x += dx / dist * spd
-      self.y += dy / dist * spd
-    else
-      self.y += self.vy
-    end
-    if self.y > 136 then self.dead = true end
-  end
-  e.render = function(self)
-    if self.tier == 2 then
-      pal(3, 1) pal(6, 12) pal(11, 12)
-    elseif self.tier == 3 then
-      pal(3, 8) pal(6, 9) pal(11, 10)
-    end
-    spr(S_GEM + flr(t() * 4) % 2, self.x, self.y)
-    pal()
-  end
-  return e
-end
 
 function make_debris(x, y)
   local ang = rnd(1)
@@ -1019,7 +1352,7 @@ function make_debris(x, y)
   e.life = life
   e.ml = life
   e.col = col
-  -- move: physics step ヌ█⬆️ gravity drag and lifetime countdown
+  -- move: physics step + gravity, drag, and lifetime countdown
   e.move = function(self)
     self.x += self.vx
     self.y += self.vy
@@ -1055,23 +1388,22 @@ end
 --   grav   = 0         gravity added to vy each frame
 --   drag   = 0.98      multiplier applied to vx,vy each frame
 --   fade   = true      colour shifts dark as life expires
---   size   = 1         1=single pixel, 2=2れ❎2 block, 0=trail only
+--   size   = 1         1=single pixel, 2=2x2 block, 0=trail only
 --   trail  = false     draw a short 1-px tail behind the particle
 -- ============================================================
 function make_particle(x, y, opts)
   opts = opts or {}
-
   -- resolve options with defaults
   local cols  = opts.cols  or { 7 }
   local col   = cols[flr(rnd(#cols)) + 1]
-  local ang   = opts.ang   ~= nil and opts.ang or rnd(1)
-  local ar    = opts.ang_r ~= nil and opts.ang_r or 1
-  local spd   = opts.spd   ~= nil and opts.spd  or (1 + rnd(2))
-  local life  = opts.life  ~= nil and opts.life  or (20 + rnd(20))
+  local ang   = opts.ang   or rnd(1)
+  local ar    = opts.ang_r or 1
+  local spd   = opts.spd   or 1+rnd(2)
+  local life  = opts.life  or 20+rnd(20)
   local grav  = opts.grav  or 0
-  local drag  = opts.drag  ~= nil and opts.drag  or 0.98
+  local drag  = opts.drag  or 0.98
   local fade  = opts.fade  ~= false  -- default true
-  local size  = opts.size  ~= nil and opts.size  or 1
+  local size  = opts.size  or 1
   local trail = opts.trail or false
 
   -- arc spread: ar=1 ヌ●★ fully random; ar=0 ヌ●★ exact angle
@@ -1095,12 +1427,12 @@ function make_particle(x, y, opts)
   end
 
   e.render = function(self)
-    local f = self.life / self.ml   -- 1ヌ●★0 as particle ages
-    -- colour fade: bright ヌ●★ mid ヌ●★ dark
+    local f = self.life / self.ml   -- 1->0 as particle ages
+    -- colour fade: bright -> mid -> dark
     local c = self.col
     if fade then
-      if f < 0.25 then c = 1
-      elseif f < 0.5 then c = 5
+      if f < 0.2 then c = 1
+      elseif f < 0.4 then c = 5
       end
     end
     -- draw trail behind motion vector
@@ -1120,111 +1452,60 @@ function make_particle(x, y, opts)
 end
 
 -- ============================================================
--- burst helpers ヌ█⬆️ call these at an event site, they spawn
+-- burst helpers -- call these at an event site, they spawn
 -- several particles and add them to entities automatically.
 -- ============================================================
+
+function emit_fx(x, y, n, p_opts)
+  for i=1, n do add(entities, make_particle(x, y, p_opts)) end
+end
 
 -- spark burst: sharp bright sparks flying outward
 -- use for: bullet impact, ship hit, explosion accent
 function burst_sparks(x, y, n, cols)
-  n    = n    or 6
-  cols = cols or { 7, 9, 10 }
-  for i = 1, n do
-    add(entities, make_particle(x, y, {
-      cols  = cols,
-      spd   = 1.5 + rnd(2.5),
-      life  = 10 + rnd(12),
-      grav  = 0.04,
-      drag  = 0.94,
-      trail = true,
-      size  = 1
-    }))
-  end
+  emit_fx(x, y, n or 6, {cols=cols or SPARK_C, spd=1.5+rnd(2.5), life=10+rnd(12), grav=0.04, drag=0.94, trail=true})
 end
 
--- smoke puff: slow, heavy, fades dark ヌ█⬆️ use for: enemy death,
+-- smoke puff: slow, heavy, fades dark -- use for: enemy death,
 -- engine exhaust, big explosions
 function burst_smoke(x, y, n, cols)
-  n    = n    or 5
-  cols = cols or { 5, 6, 13 }
-  for i = 1, n do
-    add(entities, make_particle(x, y, {
-      cols = cols,
-      spd  = 0.2 + rnd(0.6),
-      life = 25 + rnd(20),
-      grav = -0.01,   -- slight upward drift
-      drag = 0.96,
-      fade = true,
-      size = 2
-    }))
-  end
+  emit_fx(x, y, n or 5, {cols=cols or SMOKE_C, spd=0.2+rnd(0.6), life=25+rnd(20), grav=-0.01, drag=0.96, fade=true, size=2})
 end
 
 -- slow hot embers drifting upward -- use for: explosion aftermath
 function burst_embers(x, y, n)
-  n = n or 5
-  for i = 1, n do
-    add(entities, make_particle(x, y, {
-      cols  = {8, 9, 10},
-      ang   = 0.25,
-      ang_r = 0.35,
-      spd   = 0.2 + rnd(0.7),
-      life  = 35 + rnd(30),
-      grav  = -0.015,
-      drag  = 0.97,
-      fade  = true,
-      size  = 1
-    }))
-  end
+  emit_fx(x, y, n or 5, {cols=EMBER_C, ang=0.25, ang_r=0.35, spd=0.2+rnd(0.7), life=35+rnd(30), grav=-0.015, drag=0.97, fade=true, size=1})
 end
 
--- thruster glow: tight upward cone ヌ█⬆️ use for: player/enemy
+-- thruster glow: tight upward cone -- use for: player/enemy
 -- engines, boost pickups
 -- dir: 1=upward (player), -1=downward (enemy)
 function burst_thruster(x, y, cols, dir)
-  dir  = dir  or 1
-  cols = cols or { 8, 9, 10 }
-  -- cone faces "up" in screen space (negative y = up)
-  -- PICO-8 sin/cos: 0.25 = up, 0.75 = down
-  local base_ang = dir == 1 and 0.25 or 0.75
-  for i = 1, 3 do
-    add(entities, make_particle(x, y, {
-      cols  = cols,
-      ang   = base_ang,
-      ang_r = 0.12,     -- narrow 43るぬ cone
-      spd   = 0.8 + rnd(1.2),
-      life  = 6 + rnd(8),
-      grav  = 0,
-      drag  = 0.9,
-      fade  = true,
-      trail = false,
-      size  = 1
-    }))
-  end
+  local base_ang = (dir or 1) == 1 and 0.25 or 0.75
+  emit_fx(x, y, 2, {cols=cols or EMBER_C, ang=base_ang, ang_r=0.12, spd=0.8+rnd(1.2), life=6+rnd(8), drag=0.9, fade=true})
 end
 
 function kill_enemy(en)
-  play_sound(1)
+  sfx(1)
   add(entities,make_explosion(en.x,en.y))
+  add(entities,make_shockwave(en.x+4,en.y+4))
   add(entities,make_popup(en.x,en.y,en.pts))
-  burst_sparks(en.x+4,en.y+4,12,{7,9,10})
+  burst_sparks(en.x+4,en.y+4,8,SPARK_C)
   burst_smoke(en.x+4,en.y+4,7)
   burst_embers(en.x+4,en.y+4,5)
   en.dead=true
-  score+=en.pts
-  level_kills+=1
-  if level_kills>=level*8 then
-    level+=1
-    level_kills=0
-    stage_completing=true
-    for e in all(entities) do
-      if e.tag~="gem" and e.tag~="player" then e.dead=true end
-    end
+  if en.is_boss then
+    boss_ent = nil
+    hit_stop_t = 3
+    go_to_win()
     return true
   end
+
+  score+=en.pts
+  if level <= MAX_LEVEL then
+    level_kills+=1
+  end
   shake_screen(2,8)
-  local drop=en.gem_tier==3 and 70 or(en.gem_tier==2 and 50 or 30)
-  if rnd(100)<drop then spawn_gem(en.x,en.y,en.gem_tier) end
 end
 
 -- optimized collision: uses typed sub-lists so we only check
@@ -1233,27 +1514,44 @@ function check_collisions()
   -- 1. player bullets vs enemies
   for en in all(enemies) do
     if not en.dead then
+      local ecx,ecy=en.x+4,en.y+4
       for b in all(bullets) do
         if not b.dead and collide(en, b) then
-          b.dead = true
-          if en.hp and en.hp > 1 then
-            en.hp -= 1
+          local dmg = b.dmg or 1
+          if not b.pierce then b.dead = true end
+          if en.hp and en.hp > dmg then
+            en.hp -= dmg
+            if b.pierce then
+              b.hp_left -= dmg
+              if b.hp_left <= 0 then b.dead = true end
+            end
             en.flash = 3
-            play_sound(8)
+            sfx(8)
+            burst_sparks(ecx, ecy, 3, SPARK_C)
+            add(entities, make_hit_flash(ecx,ecy))
+            if en.is_boss then hit_stop_t = 2 end
           else
+            if b.pierce then
+              b.hp_left -= (en.hp or 1)
+              if b.hp_left <= 0 then b.dead = true end
+            end
+            add(entities, make_hit_flash(ecx,ecy))
             if kill_enemy(en) then return end
           end
         end
       end
       -- 2. enemy body vs player (no iframes needed on enemy bullets)
       if p.iframes <= 0 and collide(p, en) then
-        play_sound(2)
+        sfx(2)
         add(entities, make_explosion(en.x, en.y))
-        burst_sparks(en.x + 4, en.y + 4, 6, { 8, 9, 7 })
+        add(entities, make_shockwave(ecx,ecy))
+        add(entities, make_hit_flash(ecx,ecy))
+        burst_sparks(ecx, ecy, 6, { 8, 9, 7 })
         en.dead = true
         damage_player(60)
         shake_screen(3, 12)
         hit_flash_t = 8
+        hit_stop_t = 3
       end
     end
   end
@@ -1262,20 +1560,12 @@ function check_collisions()
     for eb in all(ebullets) do
       if not eb.dead and collide(p, eb) then
         eb.dead = true
-        damage_player(50)
+      damage_player(50)
         shake_screen(2, 8)
         hit_flash_t = 6
-        play_sound(2)
+        hit_stop_t = 2
+        sfx(2)
       end
-    end
-  end
-  -- 4. gems vs player
-  for g in all(gems) do
-    if not g.dead and collide(p, g) then
-      p.resources += g.value
-      g.dead = true
-      add(entities, make_popup(g.x, g.y, g.value))
-      play_sound(9)
     end
   end
 end
@@ -1326,8 +1616,6 @@ end
 -->8
 -- tab 5: system / hud
 
-function play_sound(id) sfx(id) end
-
 function shake_screen(mag, dur)
   shake_t = dur or mag * 4
   shake_mag = mag
@@ -1348,18 +1636,37 @@ end
 
 function draw_hud()
   rectfill(0, 0, 127, 9, 0)
-  print("score:" .. score, 2, 2, 7)
+  ?"score:" .. score, 2, 2, 7
 
-  local lvl_str = "lvl:" .. level
-  print(lvl_str, 64 - (#lvl_str * 2), 2, 6)
+  lvl_str = "lvl:" .. level .. "/" .. MAX_LEVEL
+  ?lvl_str, 64 - (#lvl_str * 2), 2, 6
 
-  local h_width = p.max_hp * 9
-  local start_x = 127 - h_width
+  h_width = p.max_hp * 9
+  start_x = 127 - h_width
   for i = 1, p.max_hp do
     spr(i <= p.hp and 14 or 15, start_x + (i - 1) * 9, 1)
   end
-  spr(S_GEM, 79, 1)
-  print(p.resources, 88, 2, 11)
+
+  -- Heavy Archetype Shield Gauge Rendering
+  if p.archetype == 3 then
+    if p.shield > 0 then
+      -- Draw an active blue status marker
+      circfill(start_x - 8, 4, 2, 12)
+    else
+      -- Draw a filling indicator line representing recharge rate
+      local progress = flr((p.shield_timer / 600) * 8)
+      rectfill(start_x - 12, 3, start_x - 12 + progress, 5, 8)
+    end
+  end
+
+  -- boss health bar
+  if boss_ent and not boss_ent.dead then
+    pct = boss_ent.hp/boss_ent.max_hp
+    bc=BPHC[boss_ent.combat_phase]
+    ?"boss",10,115,bc
+    rect(10,122,118,126,5)
+    rectfill(10,122,10+flr(pct*108),126,bc)
+  end
 end
 
 function apply_shake()
@@ -1388,22 +1695,62 @@ __gfx__
 0000000058588585888cc888006556000585250008c8e000005560000052525000e8c80000065500000880000008800000088000000880000088880000800800
 000000000055550088800888056cc6500055000088588e0005556000000055000e88588000065550000000000008800000088000000000000008800000088000
 00000000007007005500005505c00c50077000005605650005cc660000000770057507500066cc50000000000000000000088000000000000000000000000000
-00000000000000000000000000080000000800000000000000000000000b00000030300000000000009a0a900500005000000000000000000400444400000004
-0000000000000000000000000089800000898000001cc10000111100000b0000003b30000007700009a77a905006600500000000000000000004482222244400
-000000000000000000000000089a98000897980001cddc10011cc110003b3000003b3000007aa7009a7887a90060060000000000000000000004292888224400
-000a0000000700000007000008a7a800087778000cddddc001cccc10003b3000000b0000007aa700a787787a0600006000073000000b70000042228888829400
-009aa90000c77c0000b77b00009a9000009790000cddddc001cccc10003b3000000b000000077000a787787a060000600076b300003b67000492288999882240
-008aa800001cc100003bb300008980000089800001cddc10011cc110003b3000003b3000000000009a7887a90060060000b6b300003b6b0004828899a9982240
-00899800001dd100003bb3000008000000080000001cc10000111100000b0000003b30000000000009a77a90500660050033b300003b63000422899a7a988220
-00088000000110000003300000000000000000000000000000000000000b00000030300000000000009aa900050000500003300000033000042889a7aa998820
-005333000053330000000000000000000530033005000030000e000000000000000000000000000000000000000000000000000000000000042889a7a9988220
-053b3330053b3330055555500555555053b33b335b3003b3002e20000e000e00000000000000000000000000000000000000000000000000042889aa99882200
-33bbbb3333bbbb3355655655565555653bbbbbb33bbb3bb302222200002220000000000000000000000000000000000000000000000000000022889988822400
-3b8287b33be828b355555555555555553bb67bb33bb67bb3e22622e0022622000000000000000000000000000000000000000000000000000042288888924400
-3bb33b333bb33b336666666666666666036717300361773002222200002220000000000000000000000000000000000000000000000000000048228822244440
-033333300333333058855885058888500371173033711733002e20000e000e000000000000000000000000000000000000000000000000000444422222444000
-00b00300030000b00550055005500550303bb303003bb300000e0000000000000000000000000000000000000000000000000000000000000000900444404000
-00000000000000000000000000000000030330300003300000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000080000000800000000000000000000000b00000030300000000000009a0a900500005000000000000000000cc66cc000000000
+0000000000088000000880000089800000898000001cc10000111100000b0000003b30000007700009a77a90500660050000000000000000c166661c00000000
+000000000082280000822800089a98000897980001cddc10011cc110003b3000003b3000007aa7009a7887a9006006000000000000000000c166661c00000000
+000a00000828e2800828e28008a7a800087778000cddddc001cccc10003b3000000b0000007aa700a787787a0600006000073000000b7000c116611c00000000
+009aa9000828828008288280009a9000009790000cddddc001cccc10003b3000000b000000077000a787787a060000600076b300003b6700c116611c00000000
+008aa8000082280000822800008980000089800001cddc10011cc110003b3000003b3000000000009a7887a90060060000b6b300003b6b00c165561c00000000
+0089980000088000000880000008000000080000001cc10000111100000b0000003b30000000000009a77a90500660050033b300003b6300c161161c00000000
+00088000000000000000000000000000000000000000000000000000000b00000030300000000000009aa9000500005000033000000330000cccccc000000000
+005333000053330000000000000000000530033005000030000e0000000000002004400240044004a004400aa004400a00000000000000000000000000000000
+053b3330053b3330055555500555555053b33b335b3003b3002e20000e000e00042222400a2222a0042442400024420000000000000000000000000000000000
+33bbbb3333bbbb3355655655565555653bbbbbb33bbb3bb302222200002220000242242002422420024224200242242000000000000000000000000000000000
+3b8287b33be828b355555555555555553bb67bb33bb67bb3e22622e00226220042266224422662244428a2444428a24400000000000000000000000000000000
+3bb33b333bb33b33666666666666666603671730036177300222220000222000422662244226622444268244442a824400000000000000000000000000000000
+033333300333333058855885058888500371173033711733002e20000e000e000242242002422420024224200242242000000000000000000000000000000000
+00b00300030000b00550055005500550303bb303003bb300000e000000000000042222400a2222a0042442400024420000000000000000000000000000000000
+00000000000000000000000000000000030330300003300000000000000000002004400240044004a004400aa004400a00000000000000000000000000000000
+0677776000088000000000000cccccc033333333000880000cccccc0333333330000000000000000000000000000000000000000000000000000000000000000
+077887700008800009900990cc1111cc3bbbbbb300088000cc1111cc3bbbbbb30990099000000000000000000000000000000000000000000000000000000000
+07888870000000000998a990c11cc11c3bb33bb300000000c11cc11c3bb33bb30998a99000000000000000000000000000000000000000000000000000000000
+078888708808808800800a00c1cccc1c3b3003b388088088c1cccc1c3b3003b300800a0000000000000000000000000000000000000000000000000000000000
+077887708808808800a00800c1cccc1c3b3003b388088088c1cccc1c3b3003b300a0080000000000000000000000000000000000000000000000000000000000
+0677776000000000099a8990c11cc11c3bb33bb300000000c11cc11c3bb33bb3099a899000000000000000000000000000000000000000000000000000000000
+05dddd500008800009900990cc1111cc3bbbbbb300088000cc1111cc3bbbbbb30990099000000000000000000000000000000000000000000000000000000000
+0000000000088000000000000cccccc033333333000880000cccccc0333333330000000000000000000000000000000000000000000000000000000000000000
+00000005555555666655555550000000000000055555556666555555500000000000000555555566665555555000000000000005555555666655555550000000
+00000000555556666665555500000000000000005555566666655555000000000000000055555666666555550000000000000000555556666665555500000000
+00000000055556666665555000000000000000000555566666655550000000000000000005555666666555500000000000000000055556666665555000000000
+00000000005556655665550000000000000000000055566556655500000000000000000000555665566555000000000000000000005556655665550000000000
+00000000000556666665500000000000000000000005566666655000000000000000000000055666666550000000000000000000000556666665500000000000
+00000000000056666665000000000000000000000000566666650000000000000000000000005666666500000000000000000000000056666665000000000000
+00000000000006666660000000000000000000000000666666660000000000000000000000000666666000000000000000000000000006666660000000000000
+000000000000ddd11ddd000000000000000000000056ddd11ddd650000000000000000000000ddd11ddd000000000000000000000000ddd11ddd000000000000
+000000000000ddd55ddd000000000000000000000568ddd55ddd865000000000000000000000ddd55ddd000000000000000000000000ddd55ddd000000000000
+000000000006ddd11ddd600000000000000000005688ddd11ddd886500000000000000000006ddd11ddd600000000000000000000000ddd11ddd000000000000
+00000000006ddd1111ddd6000000000000000005688ddd1111ddd8865000000000000000006ddd1111ddd6000000000000000000000ddd1111ddd00000000000
+00000000065ddd1111ddd5600000000000000006888ddd1611ddd8886000000000000000065ddd6111ddd5600000000000000000000ddd1161ddd00000000000
+00000000658ddd5555ddd8560000000000000065888ddd5555ddd8885600000000000000658ddd5555ddd8560000000000000000000ddd5555ddd00000000000
+00000000588ddd1111ddd8850000000000000058898ddd1111ddd8988500000000000000588ddd1111ddd8850000000000000000005ddd1111ddd50000000000
+0000000068ddd111111ddd86000000000000006898ddd111111ddd89860000000000000068ddd111111ddd86000000000000000000ddd111111ddd0000000000
+0000000058ddd111161ddd85000000000000005888ddd111111ddd88850000000000000058ddd111611ddd85000000000000000000ddd161111ddd0000000000
+0000000068ddd555555ddd86000000000000006888ddd555555ddd88860000000000000068ddd555555ddd86000000000000000000ddd555555ddd0000000000
+000000005ddd11111111ddd500000000000000588ddd11111111ddd885000000000000005ddd11111111ddd500000000000000000ddd11111111ddd000000000
+000000006ddd11111111ddd600000000000000688ddd11111111ddd886000000000000006ddd11111111ddd600000000000000000ddd11111111ddd000000000
+005500005ddd16111111ddd500005500005500568ddd11116111ddd865005500005500005ddd11111111ddd500005500005500000ddd11111611ddd000005500
+05565000ddd5555555555ddd0005655005565005ddd5555555555ddd5005655005565000ddd5555555555ddd0005655005565000ddd5555555555ddd00056550
+05565000ddd1111111111ddd0005655005565006ddd1111111111ddd6005655005565000ddd1111111111ddd0005655005565000ddd1111111111ddd00056550
+05565000d56651111115665d0005655005565000d56651111115665d0005655005565000d56651111115665d0005655005565000d56651111115665d00056550
+05565000d56651111115665d0005655005565000d56651611115665d0005655005565000d56651611115665d0005655005565000d56651611115665d00056550
+0556500dd56655555555665dd00565500556500dd56655555555665dd00565500556500dd56655555555665dd00565500556500dd56655555555665dd0056550
+0556500dd56651111115665dd00565500556500dd56651111115665dd00565500556500dd56651111115665dd00565500556500dd56651111115665dd0056550
+0556500dd56651111115665dd00565500556500dd56651111115665dd00565500556500dd56651111115665dd00565500556500dd56651111115665dd0056550
+05565000056650000005665000056550055650000566500000056650000565500556500005665000000566500005655005565000056650000005665000056550
+0556500000cc00000000cc00000565500556500000cc00000000cc00000565500556500000cc00000000cc00000565500556500000cc00000000cc0000056550
+0090000000aa00000000aa00000009000080000000aa00000000aa00000008000090000000aa00000000aa00000009000080000000aa00000000aa0000000800
+00000000009900000000990000000000000000000099000000009900000000000000000000990000000099000000000000000000009900000000990000000000
+000000000000000000000000000000000000000000aa00000000aa0000000000000000000000000000000000000000000000000000aa00000000aa0000000000
 __sfx__
 000200002c054000002c053000002c052000002c051000002c050000002c040000002c03000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0005000028073000002607200000240710000022070000001e060000001a050000001505000000110400000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -1415,3 +1762,73 @@ __sfx__
 0003000028360263502434022330203201e3100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0002000022670206501e6301c6201a610000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000500003005034050370503c05000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000001461500000000000000023615000000000000000146150000000000000002361500000000000000014615000000000000000236150000000000000001461500000000000000023615000000000000000
+001000000c3100000000000000000c3100000000000000000c3100000000000000000c3100000000000000000c3100000000000000000c3100000000000000000c3100000000000000000c310000000000000000
+001000000000018510000001b510000001f5100000018510000001b510000001f5100000018510000001b510000001f5100000018510000001b510000001f5100000018510000001b510000001f5100000018510
+001000002402100000000000000000000000000000000000000000000000000000000000000000000000000027021000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000831000000000000000008310000000000000000083100000000000000000831000000000000000008310000000000000000083100000000000000000831000000000000000008310000000000000000
+0010000000000145100000017510000001b51000000145100000017510000001b51000000145100000017510000001b51000000145100000017510000001b51000000145100000017510000001b5100000014510
+001000002002100000000000000000000000000000000000000000000000000000000000000000000000000023021000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000531000000000000000005310000000000000000053100000000000000000531000000000000000005310000000000000000053100000000000000000531000000000000000005310000000000000000
+001000000000011510000001451000000195100000011510000001451000000195100000011510000001451000000195100000011510000001451000000195100000011510000001451000000195100000011510
+001000001d02100000000000000000000000000000000000000000000000000000000000000000000000000019021000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000731000000000000000007310000000000000000073100000000000000000731000000000000000007310000000000000000073100000000000000000731000000000000000007310000000000000000
+0010000000000135100000016510000001a51000000135100000016510000001a51000000135100000016510000001a51000000135100000016510000001a51000000135100000016510000001a5100000013510
+001000001f02100000000000000000000000000000000000000000000000000000000000000000000000000021021000000000000000000000000000000000000000000000000000000000000000000000000000
+00080000164201a4201d4201a420164201a4201d4201a420164201a4201d4201a420164201a4201d4201a420164201a4201d4201a420164201a4201d4201a420164201a4201d4201a420164201a4201d4201a420
+001800002152024520285202451021520245202852024510215202452028520245102152024520285202451021520245202852024510215202452028520245102152024520285202451021520245202852024510
+001800000912000000000000000010110000000000000000091200000000000000001011000000000000000009120000000000000000101100000000000000000912000000000000000010110000000000000000
+001800000012500000000000000000125000000000000000001250000000000000000012500000000000000000125000000000000000001250000000000000000012500000000000000000125000000000000000
+0018000000000000000f015000000000000000130150000000000000000f015000000000000000130150000000000000000f015000000000000000130150000000000000000f0150000000000000001301500000
+001800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001800000512500000000000000005125000000000000000051250000000000000000512500000000000000005125000000000000000051250000000000000000512500000000000000005125000000000000000
+001800000000000000140150000000000000001801500000000000000014015000000000000000180150000000000000001401500000000000000018015000000000000000140150000000000000001801500000
+001800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001800000012500000000000000000125000000000000000001250000000000000000012500000000000000000125000000000000000001250000000000000000012500000000000000000125000000000000000
+0018000000000000000f015000000000000000130150000000000000000f015000000000000000130150000000000000000f015000000000000000130150000000000000000f0150000000000000001301500000
+000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000001804116041130410f0410c0410a0410704103041000410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000c3500c3400c3300c32007350073400733007320003500034000330003200031000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00080000180411c0411f041240411f04124041280512b0612b0512b0412b031000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000800000c35010350133501835013350183501c3501f3501f3401f3301f320000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000600000866500000266450000018655000002664500000086650000026645000001865500000266450000008665000002664500000186550000026645000000866500000266450000018655000002664500000
+000600000866500000266450000018655000002664500000086650000026645000001865500000266450000008665000002664500000186550000026645000001865518665186551866518655186651865518665
+000600000c350000000c3500c3500c350000000c3500c3500c350000000c3500c3500c350000000c3500c3500c350000000c3500c3500c350000000c3500c3500c350000000c3500c3500c350000000c3500c350
+00060000184301b4301f4301b430184301b4301f4301b430184301b4301f4301b430184301b4301f4301b430184301b4301f4301b430184301b4301f4301b430184301b4301f4301b430184301b4301f4301b430
+00060000181610000018161000001b161000001b161000001f1610000000000000001b161000000000000000181610000018161000001b161000001b161000001f1610000000000000001b161000000000000000
+000600000835000000083500835008350000000835008350083500000008350083500835000000083500835008350000000835008350083500000008350083500835000000083500835008350000000835008350
+0006000014430184301b4301843014430184301b4301843014430184301b4301843014430184301b4301843014430184301b4301843014430184301b4301843014430184301b4301843014430184301b43018430
+0006000014161000001416100000181610000018161000001b1610000000000000001816100000000000000014161000001416100000181610000018161000001b16100000000000000018161000000000000000
+000600000a350000000a3500a3500a350000000a3500a3500a350000000a3500a3500a350000000a3500a3500a350000000a3500a3500a350000000a3500a3500a350000000a3500a3500a350000000a3500a350
+00060000164301a4301d4301a430164301a4301d4301a430164301a4301d4301a430164301a4301d4301a430164301a4301d4301a430164301a4301d4301a430164301a4301d4301a430164301a4301d4301a430
+00060000161610000016161000001a161000001a161000001d1610000000000000001a161000000000000000161610000016161000001a161000001a161000001d1610000000000000001a161000000000000000
+000600001335000000133501335013350000001335013350133500000013350133501335000000133501335013350000001335013350133500000013350133501335000000133501335013350000001335013350
+0006000013430174301a4301743013430174301a4301743013430174301a4301743013430174301a4301743013430174301a4301743013430174301a4301743013430174301a4301743013430174301a43017430
+00060000131611416115161161611716118161191611a1611b1610000000000000001f161000001f161000001f161000000000000000000000000000000000000000000000000000000000000000000000000000
+000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+__music__
+01 0b0c0a0d
+00 0e0f0a10
+00 11120a13
+02 14150a16
+01 1a1b1c1d
+00 1e1f2021
+00 22232425
+02 26272829
+00 2a2b4040
+04 2c2d4040
+01 3032312e
+00 3335342e
+00 3638372e
+02 393b3a2f
+
