@@ -20,9 +20,9 @@ S_GEM = 28
 S_EXPL_BIG = 30
 
 ships = {
-  { sp = 1, sp_l = 4, sp_r = 7, weapon = "basic", hp = 3, max_speed = 3, fire_delay = 10, plasma_lv = 3, laser_lv = 5, t_cols = { 8, 9, 10 } },
-  { sp = 2, sp_l = 5, sp_r = 8, weapon = "plasma", hp = 2, max_speed = 4, fire_delay = 8, plasma_lv = 1, laser_lv = 3, t_cols = { 12, 13, 7 } },
-  { sp = 3, sp_l = 6, sp_r = 9, weapon = "basic", hp = 4, max_speed = 2, fire_delay = 12, plasma_lv = 4, laser_lv = 7, t_cols = { 11, 3, 10 } }
+  { sp = 1, sp_l = 4, sp_r = 7, weapon = "basic",  hp = 3, max_speed = 3, accel = 0.45, fric = 0.85, fire_delay = 10, plasma_lv = 3, laser_lv = 5, t_cols = { 8, 9, 10 } },
+  { sp = 2, sp_l = 5, sp_r = 8, weapon = "plasma", hp = 2, max_speed = 4, accel = 0.60, fric = 0.88, fire_delay = 8,  plasma_lv = 1, laser_lv = 3, t_cols = { 12, 13, 7 } },
+  { sp = 3, sp_l = 6, sp_r = 9, weapon = "basic",  hp = 4, max_speed = 2, accel = 0.30, fric = 0.78, fire_delay = 12, plasma_lv = 4, laser_lv = 7, t_cols = { 11, 3, 10 } }
 }
 selected_ship = 1
 
@@ -304,8 +304,8 @@ function init_player()
     y = 100,
     vx = 0,
     vy = 0,
-    accel = 0.5,
-    fric = 0.85,
+    accel = s.accel,
+    fric = s.fric,
     max_speed = s.max_speed,
     sp = s.sp,
     sp_l = s.sp_l,
@@ -361,6 +361,11 @@ function update_player(obj)
   if btn(2) then ay -= obj.accel end
   if btn(3) then ay += obj.accel end
 
+  if ax ~= 0 and ay ~= 0 then
+    ax *= 0.707
+    ay *= 0.707
+  end
+
   obj.thrusting = ax ~= 0 or ay ~= 0
 
   if level >= obj.laser_lv then
@@ -379,9 +384,9 @@ function update_player(obj)
   if obj.flash_t > 0 then obj.flash_t -= 1 end
   if obj.iframes > 0 then obj.iframes -= 1 end
 
-  -- apply acceleration + friction
-  obj.vx = (obj.vx + ax) * obj.fric
-  obj.vy = (obj.vy + ay) * obj.fric
+  -- friction drags momentum; new input applied at full strength
+  obj.vx = obj.vx * obj.fric + ax
+  obj.vy = obj.vy * obj.fric + ay
 
   -- clamp to max speed
   local v = sqrt(obj.vx * obj.vx + obj.vy * obj.vy)
@@ -389,6 +394,10 @@ function update_player(obj)
     obj.vx = (obj.vx / v) * obj.max_speed
     obj.vy = (obj.vy / v) * obj.max_speed
   end
+
+  -- snap micro-drift to zero when no input
+  if abs(obj.vx) < 0.05 then obj.vx = 0 end
+  if abs(obj.vy) < 0.05 then obj.vy = 0 end
 
   obj.x += obj.vx
   obj.y += obj.vy
@@ -398,9 +407,11 @@ function update_player(obj)
     burst_thruster(obj.x + 4, obj.y + 8, obj.t_cols, 1)
   end
 
-  -- clamp to screen bounds
-  obj.x = mid(0, obj.x, 120)
-  obj.y = mid(0, obj.y, 120)
+  -- zero velocity on wall hit so ship doesn't slide along edges
+  if obj.x < 0   then obj.x = 0;   obj.vx = 0 end
+  if obj.x > 120 then obj.x = 120; obj.vx = 0 end
+  if obj.y < 0   then obj.y = 0;   obj.vy = 0 end
+  if obj.y > 120 then obj.y = 120; obj.vy = 0 end
 end
 
 function fire_bullet(obj)
