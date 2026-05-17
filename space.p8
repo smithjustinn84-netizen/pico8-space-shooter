@@ -1554,7 +1554,9 @@ function check_collisions()
         add(entities, make_shockwave(ecx,ecy))
         add(entities, make_hit_flash(ecx,ecy))
         burst_sparks(ecx, ecy, 6, { 8, 9, 7 })
-        en.dead = true
+        if not en.is_boss then
+          en.dead = true
+        end
         damage_player(60)
         shake_screen(3, 12)
         hit_flash_t = 8
