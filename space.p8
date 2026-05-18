@@ -170,7 +170,7 @@ game_state = {
     score, level, level_kills, entities, bullets, enemies, ebullets = 0, 1, 0, {}, {}, {}, {}
     sublists = { bullet = bullets, enemy = enemies, ebullet = ebullets }
     init_player()
-    shake_t, shake_mag, hit_flash_t, death_flash_t, death_timer, stage_completing, boss_spawned, boss_ent, current_wave, wave_spawned, hit_stop_t = 0, 0, 0, 0, 0, false, false, nil, 1, false, 0
+    shake_t, shake_mag, hit_flash_t, death_flash_t, death_timer, stage_completing, boss_spawned, boss_ent, current_wave, wave_spawned, hit_stop_t, reached_hi_score_this_run = 0, 0, 0, 0, 0, false, false, nil, 1, false, 0, false
     spawn_queue = {}
   end,
   update = function()
@@ -222,6 +222,21 @@ game_state = {
     end
     if not p.dead then
       check_collisions()
+      if hi_score > 0 and score > hi_score and not reached_hi_score_this_run then
+        reached_hi_score_this_run = true
+        sfx(60)
+        add(entities, make_popup(p.x - 16, p.y - 8, "high score!"))
+        for i = 1, 20 do
+          add(
+            entities, make_particle(
+              p.x + 4, p.y + 4, {
+                cols = { 10, 9, 7 }, spd = 1 + rnd(3), life = 30 + rnd(20),
+                grav = 0.03, drag = 0.96, trail = true
+              }
+            )
+          )
+        end
+      end
     end
     if stage_completing then
       stage_completing = false
@@ -857,7 +872,7 @@ enemy_types = {
     sp = S_ENEMY2, pts = 25, move = move_zigzag,
     mk_x = function() return 30 + rnd(60) end,
     mk_vy = function() return 0.8 + rnd(0.4) end,
-    extra = function(e) e.ox = e.x e.phase = rnd(1) end
+    extra = function(e) e.hp = 2 e.ox = e.x e.phase = rnd(1) end
   },
   -- spawns directly above the player and dives fast
   -- red/fiery palette: aggressive, danger signal
@@ -880,9 +895,17 @@ enemy_types = {
       local dx = p.x - e.x
       e.x += dx * 0.025
       e.x = mid(0, e.x, 120)
+      e.shoot_t -= 1
+      if e.shoot_t <= 0 then
+        e.shoot_t = 70
+        local eb = make_enemy_bullet(e, 0.9)
+        add(entities, eb) add(ebullets, eb)
+        sfx(7)
+      end
     end,
     mk_x = function() return rnd(120) end,
     mk_vy = function() return 0.6 + rnd(0.4) end,
+    extra = function(e) e.hp = 2 e.shoot_t = 50 end,
     draw_fn = function(en)
       apply_pal(2, 14, 13, 14, 13)
       spr(S_ENEMY2 + tf(4, 2), en.x, en.y)
@@ -909,7 +932,7 @@ enemy_types = {
     end,
     mk_x = function() return 10 + rnd(100) end,
     mk_vy = function() return 0.4 + rnd(0.3) end,
-    extra = function(e) e.shoot_t = 40 end,
+    extra = function(e) e.hp = 3 e.shoot_t = 40 end,
     draw_fn = function(en)
       local charging = en.shoot_t < 18
       if charging then
@@ -929,18 +952,48 @@ enemy_types = {
   },
   tank = {
     sp = S_ENEMY3, pts = 50,
+    move = function(e)
+      e.shoot_t -= 1
+      if e.shoot_t <= 0 then
+        e.shoot_t = 90
+        -- slow radial burst: 5 bullets in a ring
+        for i = 0, 4 do
+          local a = i / 5
+          local eb = make_enemy_bullet(e, 0.8)
+          eb.vx = cos(a) * 0.8
+          eb.vy = sin(a) * 0.8
+          add(entities, eb) add(ebullets, eb)
+        end
+        sfx(7)
+      end
+    end,
     mk_x = function() return 20 + rnd(80) end,
     mk_vy = function() return 0.3 + rnd(0.2) end,
-    extra = function(e) e.hp = 4 end,
+    extra = function(e) e.hp = 7 e.shoot_t = 60 end,
     draw_fn = function(en)
       spr(S_ENEMY3 + tf(4, 2), en.x, en.y)
     end
   },
   spinner = {
-    sp = S_ENEMY4, pts = 40, move = move_zigzag,
+    sp = S_ENEMY4, pts = 40, move = function(e)
+      move_zigzag(e)
+      e.shoot_t -= 1
+      if e.shoot_t <= 0 then
+        e.shoot_t = 50
+        -- fires 2 bullets at its current zigzag angle
+        for i = -1, 1, 2 do
+          local eb = make_enemy_bullet(e, 1.0)
+          local a = e.phase + i * 0.05
+          eb.vx = cos(a) * 1.0
+          eb.vy = sin(a) * 1.0
+          add(entities, eb) add(ebullets, eb)
+        end
+        sfx(7)
+      end
+    end,
     mk_x = function() return rnd(120) end,
     mk_vy = function() return 1 + rnd(0.5) end,
-    extra = function(e) e.ox = e.x e.phase = rnd(1) end,
+    extra = function(e) e.hp = 2 e.ox = e.x e.phase = rnd(1) e.shoot_t = 35 end,
     draw_fn = function(en)
       spr(S_ENEMY4 + tf(16, 2), en.x, en.y)
     end
@@ -1302,7 +1355,8 @@ function make_popup(x, y, pts)
   end
   e.render = function(self)
     local c = self.t > 13 and 7 or (self.t > 6 and 6 or 5)
-    ?"+" .. self.pts, self.x, self.y, c
+    local str = type(self.pts) == "number" and ("+" .. self.pts) or self.pts
+    ?str, self.x, self.y, c
   end
   return e
 end
@@ -1752,7 +1806,7 @@ __sfx__
 000600001335000000133501335013350000001335013350133500000013350133501335000000133501335013350000001335013350133500000013350133501335000000133501335013350000001335013350
 0006000013430174301a4301743013430174301a4301743013430174301a4301743013430174301a4301743013430174301a4301743013430174301a4301743013430174301a4301743013430174301a43017430
 00060000131611416115161161611716118161191611a1611b1610000000000000001f161000001f161000001f161000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000300001e15022150251502a1502e150311500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
