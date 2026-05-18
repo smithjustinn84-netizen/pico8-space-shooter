@@ -6,42 +6,52 @@ __lua__
 MAX_LEVEL = 5
 
 level_waves = {
-  {"basic:20,basic:60,basic:100",
-   "basic:15,zigzag:45,basic:75,zigzag:105",
-   "basic:10,basic:40,zigzag:55,basic:80,basic:110,zigzag:25"},
-  {"chaser:15,chaser:105",
-   "diver:-1,diver:-1,basic:20,basic:100",
-   "chaser:10,chaser:110,diver:-1,diver:-1,zigzag:40,zigzag:80"},
-  {"shooter:20,shooter:100",
-   "bomber:30,bomber:90,basic:10,basic:60,basic:110",
-   "shooter:15,shooter:105,bomber:45,bomber:75,chaser:30,chaser:90"},
-  {"tank:60,basic:20,basic:100",
-   "spinner:15,spinner:48,spinner:81,spinner:113",
-   "tank:35,tank:85,spinner:15,spinner:60,spinner:105,shooter:8"},
-  {"hunter:-1,chaser:20,chaser:100",
-   "tank:30,tank:90,bomber:10,bomber:60,bomber:110,diver:-1",
-   "hunter:-1,hunter:-1,shooter:10,shooter:110,spinner:45,spinner:75"}
+  {
+    "basic:20,basic:60,basic:100",
+    "basic:15,zigzag:45,basic:75,zigzag:105",
+    "basic:10,basic:40,zigzag:55,basic:80,basic:110,zigzag:25"
+  },
+  {
+    "chaser:15,chaser:105",
+    "diver:-1,diver:-1,basic:20,basic:100",
+    "chaser:10,chaser:110,diver:-1,diver:-1,zigzag:40,zigzag:80"
+  },
+  {
+    "shooter:20,shooter:100",
+    "bomber:30,bomber:90,basic:10,basic:60,basic:110",
+    "shooter:15,shooter:105,bomber:45,bomber:75,chaser:30,chaser:90"
+  },
+  {
+    "tank:60,basic:20,basic:100",
+    "spinner:15,spinner:48,spinner:81,spinner:113",
+    "tank:35,tank:85,spinner:15,spinner:60,spinner:105,shooter:8"
+  },
+  {
+    "hunter:-1,chaser:20,chaser:100",
+    "tank:30,tank:90,bomber:10,bomber:60,bomber:110,diver:-1",
+    "hunter:-1,hunter:-1,shooter:10,shooter:110,spinner:45,spinner:75"
+  }
 }
 
-S_ENEMY,S_ENEMY2,S_ENEMY3,S_ENEMY4,S_ENEMY5,S_BULLET,S_BULLET_PLASMA,S_BULLET_LASER,S_MUZZLE,S_MUZZLE_PLASMA,S_MUZZLE_LASER=32,36,34,38,40,19,21,23,16,17,18
+S_ENEMY, S_ENEMY2, S_ENEMY3, S_ENEMY4, S_ENEMY5, S_BULLET, S_BULLET_PLASMA, S_BULLET_LASER, S_MUZZLE, S_MUZZLE_PLASMA, S_MUZZLE_LASER = 32, 36, 34, 38, 40, 19, 21, 23, 16, 17, 18
 
-SPARK_C={7,9,10}
-EMBER_C={8,9,10}
-SMOKE_C={5,6,13}
-PLASMA_C={12,13,14}
+SPARK_C = { 7, 9, 10 }
+EMBER_C = { 8, 9, 10 }
+SMOKE_C = { 5, 6, 13 }
+PLASMA_C = { 12, 13, 14 }
 ships = {
   { 1, 4, 7, "basic", 3, 3, 0, 0, 10, false, EMBER_C },
-  { 2, 5, 8, "plasma", 2, 4, 0, 0, 8,  true,  { 12, 13, 7 } },
+  { 2, 5, 8, "plasma", 2, 4, 0, 0, 8, true, { 12, 13, 7 } },
   { 3, 6, 9, "basic", 4, 2, 0, 0, 12, false, { 11, 3, 10 } }
 }
 
 WEAPONS = {
-  basic  = { w_sp=49, b_sp=S_BULLET,        sfx=6, muz=S_MUZZLE,        dmg=1, v=-4 },
-  spread = { w_sp=50, b_sp=S_BULLET,        sfx=6, muz=S_MUZZLE,        dmg=1, v=-4 },
-  plasma = { w_sp=51, b_sp=S_BULLET_PLASMA, sfx=4, muz=S_MUZZLE_PLASMA, dmg=2, v=-5 },
-  laser  = { w_sp=52, b_sp=S_BULLET_LASER,  sfx=5, muz=S_MUZZLE_LASER,  dmg=3, v=-6 },
+  basic = { w_sp = 49, b_sp = S_BULLET, sfx = 6, muz = S_MUZZLE, dmg = 1, v = -4 },
+  spread = { w_sp = 50, b_sp = S_BULLET, sfx = 6, muz = S_MUZZLE, dmg = 1, v = -4 },
+  plasma = { w_sp = 51, b_sp = S_BULLET_PLASMA, sfx = 4, muz = S_MUZZLE_PLASMA, dmg = 2, v = -5 },
+  laser = { w_sp = 52, b_sp = S_BULLET_LASER, sfx = 5, muz = S_MUZZLE_LASER, dmg = 3, v = -6 }
 }
-function tf(n,m) return flr(t()*n)%m end
+function tf(n, m) return flr(t() * n) % m end
 shop_choices = {}
 shop_cursor = 1
 selected_ship = 1
@@ -49,7 +59,7 @@ hit_stop_t = 0
 
 function _init()
   music(0)
-  hi_score,final_score,level,level_kills,li_t,stage_completing,entities=0,0,1,0,0,false,{}
+  hi_score, final_score, level, level_kills, li_t, stage_completing, entities = 0, 0, 1, 0, 0, false, {}
   init_stars()
   go_to_title()
 end
@@ -129,16 +139,17 @@ title_state = {
   draw = function()
     draw_stars()
     ?"space shooter", 38, 40, 7
-
     types = { "balanced", "assault", "heavy" }
     for i = 1, 3 do
-      sx,sy = 46 + (i - 1) * 16, 60
+      sx, sy = 46 + (i - 1) * 16, 60
       if selected_ship == i then
         circfill(sx + 3, sy + 3, 8, 5)
         ?types[i], 64 - #types[i] * 2, 74, 6
         s = ships[i]
         ?"hp:", 30, 82, 6
-        for h = 1, s[5] do spr(14, 46 + (h - 1) * 9, 81) end
+        for h = 1, s[5] do
+          spr(14, 46 + (h - 1) * 9, 81)
+        end
         ?"spd:", 30, 90, 6
         for b = 1, s[6] - 1 do
           rectfill(46 + (b - 1) * 6, 90, 50 + (b - 1) * 6, 95, 7)
@@ -148,47 +159,47 @@ title_state = {
       spr(ships[i][1], sx, sy)
     end
 
-    if tf(2,2) == 0 then
-      ?"press z to start", 32, 110, 6
+    if tf(2, 2) == 0 then
+      ?"press a to start", 32, 110, 6
     end
   end
 }
 
 game_state = {
   init = function()
-    score,level,level_kills,entities,bullets,enemies,ebullets=0,1,0,{},{},{},{}
-    sublists = {bullet=bullets,enemy=enemies,ebullet=ebullets}
+    score, level, level_kills, entities, bullets, enemies, ebullets = 0, 1, 0, {}, {}, {}, {}
+    sublists = { bullet = bullets, enemy = enemies, ebullet = ebullets }
     init_player()
-    shake_t,shake_mag,hit_flash_t,death_flash_t,death_timer,stage_completing,boss_spawned,boss_ent,current_wave,wave_spawned,hit_stop_t = 0,0,0,0,0,false,false,nil,1,false,0
-    spawn_queue={}
+    shake_t, shake_mag, hit_flash_t, death_flash_t, death_timer, stage_completing, boss_spawned, boss_ent, current_wave, wave_spawned, hit_stop_t = 0, 0, 0, 0, 0, false, false, nil, 1, false, 0
+    spawn_queue = {}
   end,
   update = function()
     update_stars()
     if not p.dead and not stage_completing then
       if level <= MAX_LEVEL then
         local wl = level_waves[level]
-        if #enemies==0 and wave_spawned and #spawn_queue==0 then
+        if #enemies == 0 and wave_spawned and #spawn_queue == 0 then
           if current_wave < #wl then
-            current_wave+=1
-            wave_spawned=false
+            current_wave += 1
+            wave_spawned = false
           else
-            level+=1
-            current_wave=1
-            wave_spawned=false
-            level_kills=0
-            stage_completing=true
+            level += 1
+            current_wave = 1
+            wave_spawned = false
+            level_kills = 0
+            stage_completing = true
           end
         end
         for q in all(spawn_queue) do
-          if q.d<=0 then
-            trigger_spawn(q.t,q.x)
-            del(spawn_queue,q)
+          if q.d <= 0 then
+            trigger_spawn(q.t, q.x)
+            del(spawn_queue, q)
           else
-            q.d-=1
+            q.d -= 1
           end
         end
         if not wave_spawned and not stage_completing then
-          wave_spawned=true
+          wave_spawned = true
           load_wave(wl[current_wave])
         end
       else
@@ -206,20 +217,20 @@ game_state = {
       if e.dead and e.tag ~= "player" then
         del(entities, e)
         -- keep typed sub-lists in sync
-        if sublists[e.tag] then del(sublists[e.tag],e) end
+        if sublists[e.tag] then del(sublists[e.tag], e) end
       end
     end
     if not p.dead then
       check_collisions()
     end
     if stage_completing then
-        stage_completing = false
-        entities,bullets,enemies,ebullets = {},{},{},{}
-        sublists = {bullet=bullets,enemy=enemies,ebullet=ebullets}
-        -- re-insert player so it survives the wipe
-        add(entities, p, 1)
-        go_to_shop()
-        return
+      stage_completing = false
+      entities, bullets, enemies, ebullets = {}, {}, {}, {}
+      sublists = { bullet = bullets, enemy = enemies, ebullet = ebullets }
+      -- re-insert player so it survives the wipe
+      add(entities, p, 1)
+      go_to_shop()
+      return
     end
     if shake_t > 0 then
       shake_t -= 1
@@ -243,7 +254,7 @@ game_state = {
 
 function make_end_state(win)
   local txt = win and "you win!" or "game over"
-  local cols = win and {11,3,11,3} or {8,9,10,9}
+  local cols = win and { 11, 3, 11, 3 } or { 8, 9, 10, 9 }
   local sx = win and 39 or 38
   local mx = win and 38 or 37
   return {
@@ -264,25 +275,27 @@ function make_end_state(win)
     end,
     draw = function()
       draw_stars()
-      for e in all(entities) do e.draw(e) end
+      for e in all(entities) do
+        e.draw(e)
+      end
       camera()
       ty = 45
       if go_t < 30 then
-        ty = -20 + (1-(1-go_t/30)^3)*65
+        ty = -20 + (1 - (1 - go_t / 30) ^ 3) * 65
       end
-      wx = flr(sin(go_t*0.07)*1.5)
-      cc = cols[flr(go_t*0.08)%4+1]
-      ?txt, sx+wx, ty+1, 1
-      ?txt, mx+wx, ty, cc
+      wx = flr(sin(go_t * 0.07) * 1.5)
+      cc = cols[flr(go_t * 0.08) % 4 + 1]
+      ?txt, sx + wx, ty + 1, 1
+      ?txt, mx + wx, ty, cc
       if go_t > 45 then
-        ?"score: "..final_score, 42, ty+16, go_t>65 and 7 or 6
+        ?"score: " .. final_score, 42, ty + 16, go_t > 65 and 7 or 6
       end
       if go_t > 60 then
-        hc = final_score>=hi_score and 10 or 6
-        ?"best:  "..hi_score, 42, ty+24, hc
+        hc = final_score >= hi_score and 10 or 6
+        ?"best:  " .. hi_score, 42, ty + 24, hc
       end
-      if go_t > 90 and flr(go_t/8)%2==0 then
-        ?"z:retry  x:title", 26, ty+36, 6
+      if go_t > 90 and flr(go_t / 8) % 2 == 0 then
+        ?"a:retry  b:title", 26, ty + 36, 6
       end
     end
   }
@@ -300,7 +313,7 @@ level_intro_state = {
     draw_stars()
     ty = 50
     if li_t < 35 then
-      ty = -12 + (1 - (1 - li_t/35) ^ 3) * 62
+      ty = -12 + (1 - (1 - li_t / 35) ^ 3) * 62
     end
     wx = li_t < 50 and flr(sin(li_t * 0.07) * 1.5) or 0
     cc = ({ 8, 9, 10, 9 })[flr(li_t * 0.08) % 4 + 1]
@@ -330,35 +343,46 @@ level_intro_state = {
 function build_shop_pool(pl)
   local pool = {}
   -- Heavy-only: offer shield upgrade once, starting after level 1
-  if pl.archetype == 3 and pl.shield == nil and level >= 2 then
-    add(pool,{id="shield",sp=57,name="shield"})
-  end
-  if pl.weapon_lv < 3 then
-    c = pl.weapon_lv == 1 and 4 or 6
-    add(pool,{id="upgrade",sp=WEAPONS[pl.weapon].w_sp,name="upg. "..pl.weapon})
-  end
-  alts = {"basic","spread","plasma","laser"}
-  for _,w in ipairs(alts) do
+  local has_shield = pl.archetype == 3 and pl.shield == nil and level >= 2
+  local has_upgrade = pl.weapon_lv < 3
+
+  alts = { "basic", "spread", "plasma", "laser" }
+  for _, w in ipairs(alts) do
     skip = w == pl.weapon
-      or (w == "spread" and pl.no_spread)
-      or (w == "basic" and not pl.no_spread)
+        or (w == "spread" and pl.no_spread)
+        or (w == "basic" and not pl.no_spread)
     if not skip then
-      add(pool,{id=w,sp=WEAPONS[w].w_sp,name=w})
+      add(pool, { id = w, sp = WEAPONS[w].w_sp, name = w })
     end
   end
   if pl.hp < pl.max_hp then
-    add(pool,{id="health",sp=48,name="repair"})
+    add(pool, { id = "health", sp = 48, name = "repair" })
   end
-  for i=#pool,2,-1 do
-    local j=flr(rnd(i))+1
-    pool[i],pool[j]=pool[j],pool[i]
+
+  -- Shuffle alternative items
+  for i = #pool, 2, -1 do
+    local j = flr(rnd(i)) + 1
+    pool[i], pool[j] = pool[j], pool[i]
   end
-  return pool
+
+  -- Build final list prioritizing upgrade and shield at the very front
+  local result = {}
+  if has_upgrade then
+    add(result, { id = "upgrade", sp = WEAPONS[pl.weapon].w_sp, name = "upg. " .. pl.weapon })
+  end
+  if has_shield then
+    add(result, { id = "shield", sp = 57, name = "shield" })
+  end
+  for item in all(pool) do
+    add(result, item)
+  end
+
+  return result
 end
 
 function apply_shop_item(item)
   if item.id == "health" then
-    p.hp = min(p.hp+1,p.max_hp)
+    p.hp = min(p.hp + 1, p.max_hp)
   elseif item.id == "shield" then
     p.shield = 1
     p.shield_timer = 0
@@ -372,10 +396,12 @@ function apply_shop_item(item)
 end
 
 function go_to_shop()
-  shop_cursor,shop_t = 1,0
+  shop_cursor, shop_t = 1, 0
   local pool = build_shop_pool(p)
   shop_choices = {}
-  for i=1,min(2,#pool) do add(shop_choices,pool[i]) end
+  for i = 1, min(2, #pool) do
+    add(shop_choices, pool[i])
+  end
   state = shop_state
 end
 
@@ -399,27 +425,27 @@ shop_state = {
   draw = function()
     cls(0)
     draw_stars()
-    ?"shop",54,4,7
-    for i,item in ipairs(shop_choices) do
-      cx = i==1 and 4 or 68
-      col = shop_cursor==i and 7 or 5
-      rectfill(cx,35,cx+56,90,1)
-      rect(cx,35,cx+56,90,col)
-      if shop_cursor==i then
-        rect(cx-1,34,cx+57,91,6)
+    ?"shop", 54, 4, 7
+    for i, item in ipairs(shop_choices) do
+      cx = i == 1 and 4 or 68
+      col = shop_cursor == i and 7 or 5
+      rectfill(cx, 35, cx + 56, 90, 1)
+      rect(cx, 35, cx + 56, 90, col)
+      if shop_cursor == i then
+        rect(cx - 1, 34, cx + 57, 91, 6)
       end
-      spr(item.sp,cx+24,44)
-      ?item.name,cx+28-#item.name*2,58,7
+      spr(item.sp, cx + 24, 44)
+      ?item.name, cx + 28 - #item.name * 2, 58, 7
       cc = 11
       txt = "free"
-      ?txt,cx+28-#txt*2,68,cc
+      ?txt, cx + 28 - #txt * 2, 68, cc
     end
-    if #shop_choices==0 then
-      ?"nothing",44,55,5
-      ?"available",40,63,5
+    if #shop_choices == 0 then
+      ?"nothing", 44, 55, 5
+      ?"available", 40, 63, 5
     end
-    if shop_t > 25 and flr(t()*2)%2==0 then
-      ?"z:buy  x:skip",32,100,6
+    if shop_t > 25 and flr(t() * 2) % 2 == 0 then
+      ?"a:buy  b:skip", 32, 100, 6
     end
   end
 }
@@ -480,13 +506,13 @@ function init_player()
   -- Inject Archetype Hooks
   p.archetype = selected_ship
   if p.archetype == 1 then
-    p.iframe_mod = 20        -- Added to standard iframes on hit
+    p.iframe_mod = 20 -- Added to standard iframes on hit
   elseif p.archetype == 2 then
-    p.base_fire_delay = 4    -- Hyper-fast firing rate
-    p.spray_variance = 0.5   -- Chaotic firing cone accuracy offset
+    p.base_fire_delay = 4 -- Hyper-fast firing rate
+    p.spray_variance = 0.5 -- Chaotic firing cone accuracy offset
   elseif p.archetype == 3 then
     -- shield starts nil; unlocked via shop after level 1
-    p.always_pierce = true   -- Forces weaponry to pass through enemies
+    p.always_pierce = true -- Forces weaponry to pass through enemies
   end
 
   -- insert at front so player draws beneath enemies/bullets
@@ -507,12 +533,16 @@ function update_player(obj)
     dy *= 0.707
   end
 
-  -- 1:1 direct movement ヌ█⧗ no inertia, no drift
-  obj.vx = dx * obj.max_speed
-  obj.vy = dy * obj.max_speed
+  -- focused movement: hold fire for half-speed precision dodging
+  local spd = obj.max_speed
+  if btn(4) or btn(5) then spd *= 0.5 end
 
-  -- shoot
-  if (btn(4) or btn(5)) and obj.fire_delay <= 0 then
+  -- 1:1 direct movement — no inertia, no drift
+  obj.vx = dx * spd
+  obj.vy = dy * spd
+
+  -- shoot (auto-fire while holding Z)
+  if btn(4) and obj.fire_delay <= 0 then
     fire_bullet(obj)
     obj.fire_delay = obj.base_fire_delay
     obj.flash_t = 3
@@ -525,22 +555,31 @@ function update_player(obj)
   obj.y += obj.vy
 
   -- thruster particles: spawn every few frames when moving
-  if (ax ~= 0 or ay ~= 0) and tf(60,2) == 0 then
+  if (dx ~= 0 or dy ~= 0) and tf(60, 2) == 0 then
     burst_thruster(obj.x + 4, obj.y + 8, obj.t_cols, 1)
   end
 
-  -- zero velocity on wall hit so ship doesn't slide along edges
-  if obj.x < 0   then obj.x = 0;   obj.vx = 0 end
-  if obj.x > 120 then obj.x = 120; obj.vx = 0 end
-  if obj.y < 10  then obj.y = 10;  obj.vy = 0 end
-  if obj.y > 120 then obj.y = 120; obj.vy = 0 end
+  -- clamp to playfield — zero velocity on wall hit
+  if obj.x < 0 then
+    obj.x = 0 obj.vx = 0
+  end
+  if obj.x > 120 then
+    obj.x = 120 obj.vx = 0
+  end
+  if obj.y < 10 then
+    obj.y = 10 obj.vy = 0
+  end
+  if obj.y > 120 then
+    obj.y = 120 obj.vy = 0
+  end
 
   if obj.shield_flash_t and obj.shield_flash_t > 0 then obj.shield_flash_t -= 1 end
 
   -- Heavy Shield Regeneration Cooldown Loop
   if obj.archetype == 3 and obj.shield == 0 then
     obj.shield_timer += 1
-    if obj.shield_timer >= 600 then -- 10 seconds at 60fps
+    if obj.shield_timer >= 600 then
+      -- 10 seconds at 60fps
       obj.shield = 1
       obj.shield_timer = 0
       sfx(3) -- Play structural charge audio feedback
@@ -550,23 +589,35 @@ end
 
 function burst_muzzle(x, y, btype)
   if btype == "basic" then
-    add(entities, make_particle(x, y, {
-      cols={9,10}, ang=0.25, ang_r=0.25,
-      spd=1+rnd(1), life=10, drag=0.94, fade=true
-    }))
+    add(
+      entities, make_particle(
+        x, y, {
+          cols = { 9, 10 }, ang = 0.25, ang_r = 0.25,
+          spd = 1 + rnd(1), life = 10, drag = 0.94, fade = true
+        }
+      )
+    )
   elseif btype == "plasma" then
-    for i=1,4 do
-      add(entities, make_particle(x, y, {
-        cols=PLASMA_C, ang=0.25, ang_r=0.5,
-        spd=1+rnd(1.5), life=10+rnd(8), drag=0.92, fade=true
-      }))
+    for i = 1, 4 do
+      add(
+        entities, make_particle(
+          x, y, {
+            cols = PLASMA_C, ang = 0.25, ang_r = 0.5,
+            spd = 1 + rnd(1.5), life = 10 + rnd(8), drag = 0.92, fade = true
+          }
+        )
+      )
     end
   elseif btype == "laser" then
-    for i=1,3 do
-      add(entities, make_particle(x, y-2, {
-        cols=EMBER_C, ang=0.25, ang_r=0.35,
-        spd=2+rnd(2), life=15+rnd(10), drag=0.92, fade=true
-      }))
+    for i = 1, 3 do
+      add(
+        entities, make_particle(
+          x, y - 2, {
+            cols = EMBER_C, ang = 0.25, ang_r = 0.35,
+            spd = 2 + rnd(2), life = 15 + rnd(10), drag = 0.92, fade = true
+          }
+        )
+      )
     end
   elseif btype == "spread" then
     burst_sparks(x, y, 8, SPARK_C)
@@ -578,25 +629,25 @@ function fire_bullet(obj)
   local lv = obj.weapon_lv
   local mx, my = obj.x + 4, obj.y - 2
   if btype == "basic" then
-    local offsets = lv >= 3 and {-4,0,4} or lv == 2 and {-3,3} or {0}
-    for _,ox in ipairs(offsets) do
-      local b = make_bullet(obj,"basic") b.x += ox
-      add(entities,b) add(bullets,b)
+    local offsets = lv >= 3 and { -4, 0, 4 } or lv == 2 and { -3, 3 } or { 0 }
+    for _, ox in ipairs(offsets) do
+      local b = make_bullet(obj, "basic") b.x += ox
+      add(entities, b) add(bullets, b)
     end
   elseif btype == "spread" then
-    local vxs = lv >= 3 and {-4,-2,0,2,4} or lv == 2 and {-3.5,0,3.5} or {-2.5,0,2.5}
-    for _,vx in ipairs(vxs) do
-      local b = make_bullet(obj,"spread") b.vx = vx
-      add(entities,b) add(bullets,b)
+    local vxs = lv >= 3 and { -4, -2, 0, 2, 4 } or lv == 2 and { -3.5, 0, 3.5 } or { -2.5, 0, 2.5 }
+    for _, vx in ipairs(vxs) do
+      local b = make_bullet(obj, "spread") b.vx = vx
+      add(entities, b) add(bullets, b)
     end
   elseif btype == "plasma" then
-    local offsets = lv >= 3 and {-6,-2,2,6} or lv == 2 and {-4,0,4} or {-4,4}
-    for _,ox in ipairs(offsets) do
-      local b = make_bullet(obj,"plasma") b.x += ox
-      add(entities,b) add(bullets,b)
+    local offsets = lv >= 3 and { -6, -2, 2, 6 } or lv == 2 and { -4, 0, 4 } or { -4, 4 }
+    for _, ox in ipairs(offsets) do
+      local b = make_bullet(obj, "plasma") b.x += ox
+      add(entities, b) add(bullets, b)
     end
   elseif btype == "laser" then
-    local offsets = lv >= 3 and {-4, 4} or {0}
+    local offsets = lv >= 3 and { -4, 4 } or { 0 }
     for _, ox in ipairs(offsets) do
       local b = make_bullet(obj, "laser")
       b.x += ox
@@ -605,17 +656,17 @@ function fire_bullet(obj)
     end
     shake_screen(lv >= 2 and 2 or 1, lv >= 2 and 6 or 4)
   end
-  burst_muzzle(mx,my,btype)
+  burst_muzzle(mx, my, btype)
   sfx(WEAPONS[btype].sfx)
 end
 
 function draw_player(obj)
   s = obj.sp
   dx = 0
-  if obj.vx < -0.2 then
+  if obj.vx < 0 then
     s = obj.sp_l
     dx = -1
-  elseif obj.vx > 0.2 then
+  elseif obj.vx > 0 then
     s = obj.sp_r
     dx = 1
   end
@@ -665,7 +716,7 @@ function draw_thruster(obj, dx)
 end
 
 function draw_muzzle_flash(obj, dx)
-  m_sp=WEAPONS[obj.weapon].muz
+  m_sp = WEAPONS[obj.weapon].muz
 
   flip_x = obj.flash_t % 2 == 0
   offset_y = flr(rnd(2))
@@ -677,7 +728,7 @@ function draw_player_death(obj)
   prog = 1 - death_timer / 120
   sep = flr(prog * prog * 18)
   twist = flr(sin(prog * 2.5) * sep * 0.4)
-  hot = ({ 9, 10, 9, 8, 7 })[tf(14,5) + 1]
+  hot = ({ 9, 10, 9, 8, 7 })[tf(14, 5) + 1]
   for c = 0, 15 do
     pal(c, hot)
   end
@@ -708,7 +759,7 @@ function damage_player(frames)
   -- Balanced Ship Extended Iframe Buff
   p.iframes = frames + (p.iframe_mod or 0)
   p.max_iframes = frames + (p.iframe_mod or 0)
-  
+
   if p.hp <= 0 then player_death() end
 end
 
@@ -737,10 +788,10 @@ end
 -->8
 -- tab 3: entities
 -- boss phase data: spd,wide,phc,rate,nbul,sprd per phase
-BSPD,BWIDE,BPHC,BRATE,BNBUL,BSPRD={},{},{},{},{},{}
-for i,r in ipairs(split("0.02:30:11:60:1:0,0.035:30:9:45:3:0.08,0.05:40:8:30:5:0.07")) do
-  local s=split(r,":",true)
-  BSPD[i],BWIDE[i],BPHC[i],BRATE[i],BNBUL[i],BSPRD[i]=s[1],s[2],s[3],s[4],s[5],s[6]
+BSPD, BWIDE, BPHC, BRATE, BNBUL, BSPRD = {}, {}, {}, {}, {}, {}
+for i, r in ipairs(split("0.02:30:11:60:1:0,0.035:30:9:45:3:0.08,0.05:40:8:30:5:0.07")) do
+  local s = split(r, ":", true)
+  BSPD[i], BWIDE[i], BPHC[i], BRATE[i], BNBUL[i], BSPRD[i] = s[1], s[2], s[3], s[4], s[5], s[6]
 end
 
 -- base entity constructor: creates a table with shared fields
@@ -748,10 +799,10 @@ end
 -- specialized constructors call this, then override what they need.
 function make_ent(tag, x, y)
   return {
-    tag=tag, x=x, y=y, dead=false,
+    tag = tag, x = x, y = y, dead = false,
     -- Just check if they exist before calling
-    update=function(s) if s.move then s:move() end end,
-    draw=function(s) if s.render then s:render() end end
+    update = function(s) if s.move then s:move() end end,
+    draw = function(s) if s.render then s:render() end end
   }
 end
 
@@ -760,53 +811,56 @@ function move_zigzag(e)
   e.x = mid(0, e.ox + 30 * sin(e.phase), 120)
 end
 
-
 -- fire n bullets spread around aimed direction (da in pico-8 turns)
 function boss_fire(e, n, da)
-  local bx = (p.x+4)-(e.x+16)
-  local by = (p.y+4)-(e.y+16)
-  local d = sqrt(bx*bx+by*by)
-  if d==0 then d=1 end
-  bx = bx/d*1.4
-  by = by/d*1.4
-  local half = (n-1)/2
-  for i=0,n-1 do
-    local off = (i-half)*da
+  local bx = (p.x + 4) - (e.x + 16)
+  local by = (p.y + 4) - (e.y + 16)
+  local d = sqrt(bx * bx + by * by)
+  if d == 0 then d = 1 end
+  bx = bx / d * 1.4
+  by = by / d * 1.4
+  local half = (n - 1) / 2
+  for i = 0, n - 1 do
+    local off = (i - half) * da
     local cs = cos(off)
     local sn = sin(off)
     local eb = make_enemy_bullet(e)
-    eb.x = e.x+14
-    eb.y = e.y+28
-    eb.vx = bx*cs - by*sn
-    eb.vy = bx*sn + by*cs
+    eb.x = e.x + 14
+    eb.y = e.y + 28
+    eb.vx = bx * cs - by * sn
+    eb.vy = bx * sn + by * cs
     add(entities, eb)
     add(ebullets, eb)
   end
   sfx(7)
 end
 
-function apply_pal(c3,c11,c12,c7,c6)
-  pal(3,c3) pal(11,c11) pal(12,c12) pal(7,c7) pal(6,c6)
+function apply_pal(c3, c11, c12, c7, c6)
+  pal(3, c3)
+  pal(11, c11)
+  pal(12, c12)
+  pal(7, c7)
+  pal(6, c6)
 end
 
 function draw_flash(e)
-  if e.flash and e.flash>0 then
-    for c=0,15 do pal(c,7) end
-    spr(e.sp+tf(4,2),e.x,e.y)
+  if e.flash and e.flash > 0 then
+    for c = 0, 15 do
+      pal(c, 7)
+    end
+    spr(e.sp + tf(4, 2), e.x, e.y)
     pal()
-    e.flash-=1
+    e.flash -= 1
   end
 end
 
 enemy_types = {
   basic = {
-
     sp = S_ENEMY, pts = 10,
     mk_x = function() return rnd(120) end,
-    mk_vy = function() return 1 + rnd(1) end,
+    mk_vy = function() return 1 + rnd(1) end
   },
   zigzag = {
-
     sp = S_ENEMY2, pts = 25, move = move_zigzag,
     mk_x = function() return 30 + rnd(60) end,
     mk_vy = function() return 0.8 + rnd(0.4) end,
@@ -815,14 +869,13 @@ enemy_types = {
   -- spawns directly above the player and dives fast
   -- red/fiery palette: aggressive, danger signal
   diver = {
-
     sp = S_ENEMY, pts = 20,
-    move = function(e) if tf(60,4)==0 then burst_thruster(e.x+4,e.y,{8,9,7},-1) end end,
+    move = function(e) if tf(60, 4) == 0 then burst_thruster(e.x + 4, e.y, { 8, 9, 7 }, -1) end end,
     mk_x = function() return p.x end,
     mk_vy = function() return 1.8 + rnd(0.8) end,
     draw_fn = function(en)
-      apply_pal(8,9,8,10,9)
-      spr(S_ENEMY + tf(4,2), en.x, en.y)
+      apply_pal(8, 9, 8, 10, 9)
+      spr(S_ENEMY + tf(4, 2), en.x, en.y)
       pal()
     end
   },
@@ -838,8 +891,8 @@ enemy_types = {
     mk_x = function() return rnd(120) end,
     mk_vy = function() return 0.6 + rnd(0.4) end,
     draw_fn = function(en)
-      apply_pal(2,14,13,14,13)
-      spr(S_ENEMY2 + tf(4,2), en.x, en.y)
+      apply_pal(2, 14, 13, 14, 13)
+      spr(S_ENEMY2 + tf(4, 2), en.x, en.y)
       pal()
     end
   },
@@ -863,12 +916,12 @@ enemy_types = {
     draw_fn = function(en)
       local charging = en.shoot_t < 18
       if charging then
-        local f = tf(12,2) == 0
+        local f = tf(12, 2) == 0
         apply_pal(f and 7 or 10, f and 7 or 10, 10, 7, 10)
       else
-        apply_pal(3,10,11,10,11)
+        apply_pal(3, 10, 11, 10, 11)
       end
-      spr(S_ENEMY + tf(4,2), en.x, en.y)
+      spr(S_ENEMY + tf(4, 2), en.x, en.y)
       pal()
       -- charge ring glows outward when near firing
       if charging then
@@ -878,54 +931,53 @@ enemy_types = {
     end
   },
   tank = {
-
     sp = S_ENEMY3, pts = 50,
     mk_x = function() return 20 + rnd(80) end,
     mk_vy = function() return 0.3 + rnd(0.2) end,
     extra = function(e) e.hp = 4 end,
     draw_fn = function(en)
-      spr(S_ENEMY3 + tf(4,2), en.x, en.y)
+      spr(S_ENEMY3 + tf(4, 2), en.x, en.y)
     end
   },
   spinner = {
-
     sp = S_ENEMY4, pts = 40, move = move_zigzag,
     mk_x = function() return rnd(120) end,
     mk_vy = function() return 1 + rnd(0.5) end,
     extra = function(e) e.ox = e.x e.phase = rnd(1) end,
     draw_fn = function(en)
-      spr(S_ENEMY4 + tf(16,2), en.x, en.y)
+      spr(S_ENEMY4 + tf(16, 2), en.x, en.y)
     end
   },
   -- bomber: enters from a random side, sweeps diagonally across the screen
   -- uses all 4 sprite frames (40-43) for a smooth 4-frame animation
   bomber = {
-
     sp = S_ENEMY5, pts = 35,
     mk_x = function() return 0 end,
     mk_vy = function() return 0.6 + rnd(0.4) end,
     extra = function(e)
       -- spawn off either side; vx sweeps toward opposite side
       if rnd(2) > 1 then
-        e.x  = -8
+        e.x = -8
         e.vx = 0.8 + rnd(0.5)
       else
-        e.x  = 128
+        e.x = 128
         e.vx = -(0.8 + rnd(0.5))
       end
     end,
     -- apply horizontal velocity and expire when fully off either side
     move = function(e)
       e.x += e.vx
-      if e.x > 136 then e.x = -8
-      elseif e.x < -16 then e.x = 136 end
+      if e.x > 136 then
+        e.x = -8
+      elseif e.x < -16 then
+        e.x = 136
+      end
     end,
     draw_fn = function(en)
-      spr(S_ENEMY5 + tf(8,4), en.x, en.y)
+      spr(S_ENEMY5 + tf(8, 4), en.x, en.y)
     end
   },
   boss = {
-
     sp = 64, pts = 500,
     mk_x = function() return 48 end,
     mk_vy = function() return 0.2 end,
@@ -946,37 +998,43 @@ enemy_types = {
     end,
     move = function(e)
       -- phase transitions on hp thresholds
-      if e.combat_phase<2 and e.hp<=100 then
-        e.combat_phase=2 shake_screen(4,15) e.flash=8
+      if e.combat_phase < 2 and e.hp <= 100 then
+        e.combat_phase = 2 shake_screen(4, 15) e.flash = 8
       end
-      if e.combat_phase<3 and e.hp<=50 then
-        e.combat_phase=3 shake_screen(6,20) e.flash=8
+      if e.combat_phase < 3 and e.hp <= 50 then
+        e.combat_phase = 3 shake_screen(6, 20) e.flash = 8
       end
       -- oscillation: faster and wider each phase
-      local spd=BSPD[e.combat_phase]
-      local wide=BWIDE[e.combat_phase]
+      local spd = BSPD[e.combat_phase]
+      local wide = BWIDE[e.combat_phase]
       e.phase += spd
-      e.x = 48 + sin(e.phase)*wide
-      if e.y > 10 then e.y=10; e.vy=0 end
+      e.x = 48 + sin(e.phase) * wide
+      if e.y > 10 then
+        e.y = 10 e.vy = 0
+      end
       -- shoot countdown
       e.shoot_t -= 1
       if e.shoot_t <= 0 then
-        e.shoot_t=BRATE[e.combat_phase]
-        boss_fire(e,BNBUL[e.combat_phase],BSPRD[e.combat_phase])
+        e.shoot_t = BRATE[e.combat_phase]
+        boss_fire(e, BNBUL[e.combat_phase], BSPRD[e.combat_phase])
       end
     end,
     draw_fn = function(en)
       -- handle flash here: draw_flash() uses 8x8 spr, wrong for 32x32 boss
-      local do_flash = en.flash and en.flash>0
+      local do_flash = en.flash and en.flash > 0
       if do_flash then
-        for c=0,15 do pal(c,7) end
+        for c = 0, 15 do
+          pal(c, 7)
+        end
         en.flash -= 1
-      elseif en.combat_phase==3 then
-        if tf(8,2)==0 then pal(10,8) pal(9,8) end
-      elseif en.combat_phase==2 then
-        pal(10,9)
+      elseif en.combat_phase == 3 then
+        if tf(8, 2) == 0 then
+          pal(10, 8) pal(9, 8)
+        end
+      elseif en.combat_phase == 2 then
+        pal(10, 9)
       end
-      sspr(tf(4,4)*32,32,32,32,en.x,en.y)
+      sspr(tf(4, 4) * 32, 32, 32, 32, en.x, en.y)
       pal()
     end
   }
@@ -1025,7 +1083,7 @@ function make_hunter()
     -- accelerate downward
     if self.vy > 4 then self.vy = 4 end
     self.y += self.vy
-    if tf(60,3) == 0 then
+    if tf(60, 3) == 0 then
       burst_thruster(self.x + 4, self.y, { 10, 9, 8 }, -1)
     end
     if self.y > 128 then
@@ -1047,15 +1105,15 @@ function make_hunter()
   e.render = function(self)
     local diving = (self.state == self.dive)
     if diving then
-      apply_pal(9,10,9,10,9)
+      apply_pal(9, 10, 9, 10, 9)
     else
-      apply_pal(4,14,4,14,4)
+      apply_pal(4, 14, 4, 14, 4)
     end
-    spr(S_ENEMY3 + tf(4,2), self.x, self.y)
+    spr(S_ENEMY3 + tf(4, 2), self.x, self.y)
     pal()
     -- draw a targeting reticle while patrolling
     if not diving then
-      local blink = tf(6,2) == 0
+      local blink = tf(6, 2) == 0
       if blink then
         line(self.x + 4, self.y + 9, self.x + 4, self.y + 14, 14)
       end
@@ -1073,17 +1131,17 @@ function spawn_hunter()
 end
 
 function load_wave(ws)
-  spawn_queue={}
-  local delay=0
+  spawn_queue = {}
+  local delay = 0
   for e in all(split(ws)) do
-    local s=split(e,":")
-    add(spawn_queue,{t=s[1],x=tonum(s[2]),d=delay})
-    delay+=30
+    local s = split(e, ":")
+    add(spawn_queue, { t = s[1], x = tonum(s[2]), d = delay })
+    delay += 30
   end
 end
 
-function trigger_spawn(t,x)
-  if t=="hunter" then spawn_hunter() else spawn_enemy(t,x) end
+function trigger_spawn(t, x)
+  if t == "hunter" then spawn_hunter() else spawn_enemy(t, x) end
 end
 
 function make_bullet(obj, btype)
@@ -1105,34 +1163,42 @@ function make_bullet(obj, btype)
   e.pierce = btype == "laser"
   -- move: fly upward, apply vx spread, trail particles, expire when off-screen
   e.move = function(self)
-      self.x += self.vx
-      self.y += self.vy
-      if self.btype == "plasma" and flr(self.y) % 2 == 0 then
-        add(entities, make_particle(self.x + 3, self.y + 4, {
-          cols = {12, 13, 7}, ang = 0.75, ang_r = 0.1,
-          spd = 0.5 + rnd(0.5), life = 6, fade = true
-        }))
-      elseif self.btype == "laser" and flr(self.y) % 2 == 0 then
-        add(entities, make_particle(self.x + 3, self.y + 4, {
-          cols = {7, 10, 9}, ang = 0.75, ang_r = 0.1,
-          spd = 1 + rnd(0.5), life = 8, fade = true, trail = true
-        }))
-      end
-      if self.y < -8 then self.dead = true end
+    self.x += self.vx
+    self.y += self.vy
+    if self.btype == "plasma" and flr(self.y) % 2 == 0 then
+      add(
+        entities, make_particle(
+          self.x + 3, self.y + 4, {
+            cols = { 12, 13, 7 }, ang = 0.75, ang_r = 0.1,
+            spd = 0.5 + rnd(0.5), life = 6, fade = true
+          }
+        )
+      )
+    elseif self.btype == "laser" and flr(self.y) % 2 == 0 then
+      add(
+        entities, make_particle(
+          self.x + 3, self.y + 4, {
+            cols = { 7, 10, 9 }, ang = 0.75, ang_r = 0.1,
+            spd = 1 + rnd(0.5), life = 8, fade = true, trail = true
+          }
+        )
+      )
+    end
+    if self.y < -8 then self.dead = true end
   end
   if btype == "plasma" then
     e.render = function(self)
       local cx = self.x + 4
       local cy = self.y + 4
-      local r = 2 + tf(12,2)
+      local r = 2 + tf(12, 2)
       circfill(cx, cy, r, 12)
       circfill(cx, cy, 1, 13)
       pset(cx, cy, 7)
     end
   elseif btype == "spread" then
     e.render = function(self)
-      pset(self.x + 3, self.y,     7)
-      pset(self.x + 4, self.y,     7)
+      pset(self.x + 3, self.y, 7)
+      pset(self.x + 4, self.y, 7)
       pset(self.x + 3, self.y + 1, 10)
       pset(self.x + 4, self.y + 1, 10)
       pset(self.x + 3, self.y + 2, 9)
@@ -1142,7 +1208,7 @@ function make_bullet(obj, btype)
     end
   else
     e.render = function(self)
-      spr(self.sp + tf(12,2), self.x, self.y)
+      spr(self.sp + tf(12, 2), self.x, self.y)
     end
   end
 
@@ -1178,10 +1244,14 @@ function make_enemy_bullet(src)
   e.move = function(self)
     self.x += self.vx
     self.y += self.vy
-    add(entities, make_particle(self.x + 2, self.y + 2, {
-      cols = {10, 9, 8}, ang = 0.75, ang_r = 0.25,
-      spd = 0.6, life = 8, fade = true
-    }))
+    add(
+      entities, make_particle(
+        self.x + 2, self.y + 2, {
+          cols = { 10, 9, 8 }, ang = 0.75, ang_r = 0.25,
+          spd = 0.6, life = 8, fade = true
+        }
+      )
+    )
     if self.y > 136 or self.y < -16
         or self.x < -16 or self.x > 144 then
       self.dead = true
@@ -1192,25 +1262,25 @@ function make_enemy_bullet(src)
     local cx = self.x + 2
     local cy = self.y + 2
     -- outer arms (orange)
-    pset(cx,     cy - 2, 9)
-    pset(cx,     cy + 2, 9)
-    pset(cx - 2, cy,     9)
-    pset(cx + 2, cy,     9)
+    pset(cx, cy - 2, 9)
+    pset(cx, cy + 2, 9)
+    pset(cx - 2, cy, 9)
+    pset(cx + 2, cy, 9)
     -- inner ring (yellow)
-    pset(cx,     cy - 1, 10)
-    pset(cx,     cy + 1, 10)
-    pset(cx - 1, cy,     10)
-    pset(cx + 1, cy,     10)
+    pset(cx, cy - 1, 10)
+    pset(cx, cy + 1, 10)
+    pset(cx - 1, cy, 10)
+    pset(cx + 1, cy, 10)
     -- hot white core
     pset(cx, cy, 7)
   end
   return e
 end
 
-function spawn_enemy(type_name,ox)
+function spawn_enemy(type_name, ox)
   local td = enemy_types[type_name]
   local dfn = td.draw_fn
-  local e = make_ent("enemy",(ox and ox>0) and ox or td.mk_x(),-8)
+  local e = make_ent("enemy", (ox and ox > 0) and ox or td.mk_x(), -8)
   e.sp = td.sp
   e.vy = td.mk_vy()
   e.w = 8
@@ -1230,7 +1300,7 @@ function spawn_enemy(type_name,ox)
     if dfn then
       dfn(self)
     else
-      spr(self.sp + tf(4,2), self.x, self.y)
+      spr(self.sp + tf(4, 2), self.x, self.y)
     end
     draw_flash(self)
   end
@@ -1240,8 +1310,8 @@ function spawn_enemy(type_name,ox)
 end
 
 function make_explosion(x, y, big)
-  local sc,cx,cy,nc,mh,rb,rr,t1,t2 = big and 1.5 or 1, big and x or x+4, big and y or y+4, big and 30 or 12, big and 16 or 10, big and 10 or 5, big and 4 or 3, big and 0.2 or 0.3, big and 0.5 or 0.6
-  for i=1,nc do
+  local sc, cx, cy, nc, mh, rb, rr, t1, t2 = big and 1.5 or 1, big and x or x + 4, big and y or y + 4, big and 30 or 12, big and 16 or 10, big and 10 or 5, big and 4 or 3, big and 0.2 or 0.3, big and 0.5 or 0.6
+  for i = 1, nc do
     local p = make_ent("particle", cx, cy)
     local mult = (3 + rnd(4)) * sc
     p.sx = (rnd(1) - 0.5) * mult
@@ -1293,7 +1363,7 @@ end
 
 function make_shockwave(x, y, big)
   local e = make_ent("shockwave", x, y)
-  e.h     = 0
+  e.h = 0
   e.max_h = big and 22 or 16
   e.max_r = big and 28 or 18
   e.move = function(self)
@@ -1304,9 +1374,9 @@ function make_shockwave(x, y, big)
     local f = self.h / self.max_h
     local r = flr(self.max_r * f)
     local c = 7
-    if f > 0.3  then c = 10 end
-    if f > 0.6  then c = 9  end
-    if f > 0.85 then c = 4  end
+    if f > 0.3 then c = 10 end
+    if f > 0.6 then c = 9 end
+    if f > 0.85 then c = 4 end
     if r > 0 then
       circ(self.x, self.y, r, c)
       if f < 0.5 and r > 1 then
@@ -1346,7 +1416,6 @@ function make_popup(x, y, pts)
   end
   return e
 end
-
 
 function make_debris(x, y)
   local ang = rnd(1)
@@ -1401,31 +1470,32 @@ end
 function make_particle(x, y, opts)
   opts = opts or {}
   -- resolve options with defaults
-  local cols  = opts.cols  or { 7 }
-  local col   = cols[flr(rnd(#cols)) + 1]
-  local ang   = opts.ang   or rnd(1)
-  local ar    = opts.ang_r or 1
-  local spd   = opts.spd   or 1+rnd(2)
-  local life  = opts.life  or 20+rnd(20)
-  local grav  = opts.grav  or 0
-  local drag  = opts.drag  or 0.98
-  local fade  = opts.fade  ~= false  -- default true
-  local size  = opts.size  or 1
+  local cols = opts.cols or { 7 }
+  local col = cols[flr(rnd(#cols)) + 1]
+  local ang = opts.ang or rnd(1)
+  local ar = opts.ang_r or 1
+  local spd = opts.spd or 1 + rnd(2)
+  local life = opts.life or 20 + rnd(20)
+  local grav = opts.grav or 0
+  local drag = opts.drag or 0.98
+  local fade = opts.fade ~= false
+  -- default true
+  local size = opts.size or 1
   local trail = opts.trail or false
 
   -- arc spread: ar=1 ヌ●★ fully random; ar=0 ヌ●★ exact angle
   local a = ang + (rnd(ar) - ar * 0.5)
 
   local e = make_ent("particle", x, y)
-  e.vx   = cos(a) * spd
-  e.vy   = sin(a) * spd
+  e.vx = cos(a) * spd
+  e.vy = sin(a) * spd
   e.life = life
-  e.ml   = life
-  e.col  = col
+  e.ml = life
+  e.col = col
 
   e.move = function(self)
-    self.x  += self.vx
-    self.y  += self.vy
+    self.x += self.vx
+    self.y += self.vy
     self.vy += grav
     self.vx *= drag
     self.vy *= drag
@@ -1434,18 +1504,23 @@ function make_particle(x, y, opts)
   end
 
   e.render = function(self)
-    local f = self.life / self.ml   -- 1->0 as particle ages
+    local f = self.life / self.ml
+    -- 1->0 as particle ages
     -- colour fade: bright -> mid -> dark
     local c = self.col
     if fade then
-      if f < 0.2 then c = 1
-      elseif f < 0.4 then c = 5
+      if f < 0.2 then
+        c = 1
+      elseif f < 0.4 then
+        c = 5
       end
     end
     -- draw trail behind motion vector
     if trail and f > 0.4 then
-      pset(self.x - self.vx * 0.5,
-           self.y - self.vy * 0.5, 1)
+      pset(
+        self.x - self.vx * 0.5,
+        self.y - self.vy * 0.5, 1
+      )
     end
     -- draw body
     if size == 2 then
@@ -1464,24 +1539,26 @@ end
 -- ============================================================
 
 function emit_fx(x, y, n, p_opts)
-  for i=1, n do add(entities, make_particle(x, y, p_opts)) end
+  for i = 1, n do
+    add(entities, make_particle(x, y, p_opts))
+  end
 end
 
 -- spark burst: sharp bright sparks flying outward
 -- use for: bullet impact, ship hit, explosion accent
 function burst_sparks(x, y, n, cols)
-  emit_fx(x, y, n or 6, {cols=cols or SPARK_C, spd=1.5+rnd(2.5), life=10+rnd(12), grav=0.04, drag=0.94, trail=true})
+  emit_fx(x, y, n or 6, { cols = cols or SPARK_C, spd = 1.5 + rnd(2.5), life = 10 + rnd(12), grav = 0.04, drag = 0.94, trail = true })
 end
 
 -- smoke puff: slow, heavy, fades dark -- use for: enemy death,
 -- engine exhaust, big explosions
 function burst_smoke(x, y, n, cols)
-  emit_fx(x, y, n or 5, {cols=cols or SMOKE_C, spd=0.2+rnd(0.6), life=25+rnd(20), grav=-0.01, drag=0.96, fade=true, size=2})
+  emit_fx(x, y, n or 5, { cols = cols or SMOKE_C, spd = 0.2 + rnd(0.6), life = 25 + rnd(20), grav = -0.01, drag = 0.96, fade = true, size = 2 })
 end
 
 -- slow hot embers drifting upward -- use for: explosion aftermath
 function burst_embers(x, y, n)
-  emit_fx(x, y, n or 5, {cols=EMBER_C, ang=0.25, ang_r=0.35, spd=0.2+rnd(0.7), life=35+rnd(30), grav=-0.015, drag=0.97, fade=true, size=1})
+  emit_fx(x, y, n or 5, { cols = EMBER_C, ang = 0.25, ang_r = 0.35, spd = 0.2 + rnd(0.7), life = 35 + rnd(30), grav = -0.015, drag = 0.97, fade = true, size = 1 })
 end
 
 -- thruster glow: tight upward cone -- use for: player/enemy
@@ -1489,18 +1566,18 @@ end
 -- dir: 1=upward (player), -1=downward (enemy)
 function burst_thruster(x, y, cols, dir)
   local base_ang = (dir or 1) == 1 and 0.25 or 0.75
-  emit_fx(x, y, 2, {cols=cols or EMBER_C, ang=base_ang, ang_r=0.12, spd=0.8+rnd(1.2), life=6+rnd(8), drag=0.9, fade=true})
+  emit_fx(x, y, 2, { cols = cols or EMBER_C, ang = base_ang, ang_r = 0.12, spd = 0.8 + rnd(1.2), life = 6 + rnd(8), drag = 0.9, fade = true })
 end
 
 function kill_enemy(en)
   sfx(1)
-  add(entities,make_explosion(en.x,en.y))
-  add(entities,make_shockwave(en.x+4,en.y+4))
-  add(entities,make_popup(en.x,en.y,en.pts))
-  burst_sparks(en.x+4,en.y+4,8,SPARK_C)
-  burst_smoke(en.x+4,en.y+4,7)
-  burst_embers(en.x+4,en.y+4,5)
-  en.dead=true
+  add(entities, make_explosion(en.x, en.y))
+  add(entities, make_shockwave(en.x + 4, en.y + 4))
+  add(entities, make_popup(en.x, en.y, en.pts))
+  burst_sparks(en.x + 4, en.y + 4, 8, SPARK_C)
+  burst_smoke(en.x + 4, en.y + 4, 7)
+  burst_embers(en.x + 4, en.y + 4, 5)
+  en.dead = true
   if en.is_boss then
     boss_ent = nil
     hit_stop_t = 3
@@ -1508,11 +1585,11 @@ function kill_enemy(en)
     return true
   end
 
-  score+=en.pts
+  score += en.pts
   if level <= MAX_LEVEL then
-    level_kills+=1
+    level_kills += 1
   end
-  shake_screen(2,8)
+  shake_screen(2, 8)
 end
 
 -- optimized collision: uses typed sub-lists so we only check
@@ -1521,7 +1598,7 @@ function check_collisions()
   -- 1. player bullets vs enemies
   for en in all(enemies) do
     if not en.dead then
-      local ecx,ecy=en.x+4,en.y+4
+      local ecx, ecy = en.x + 4, en.y + 4
       for b in all(bullets) do
         if not b.dead and collide(en, b) then
           local dmg = b.dmg or 1
@@ -1535,14 +1612,14 @@ function check_collisions()
             en.flash = 3
             sfx(8)
             burst_sparks(ecx, ecy, 3, SPARK_C)
-            add(entities, make_hit_flash(ecx,ecy))
+            add(entities, make_hit_flash(ecx, ecy))
             if en.is_boss then hit_stop_t = 2 end
           else
             if b.pierce then
               b.hp_left -= (en.hp or 1)
               if b.hp_left <= 0 then b.dead = true end
             end
-            add(entities, make_hit_flash(ecx,ecy))
+            add(entities, make_hit_flash(ecx, ecy))
             if kill_enemy(en) then return end
           end
         end
@@ -1551,8 +1628,8 @@ function check_collisions()
       if p.iframes <= 0 and collide(p, en) then
         sfx(2)
         add(entities, make_explosion(en.x, en.y))
-        add(entities, make_shockwave(ecx,ecy))
-        add(entities, make_hit_flash(ecx,ecy))
+        add(entities, make_shockwave(ecx, ecy))
+        add(entities, make_hit_flash(ecx, ecy))
         burst_sparks(ecx, ecy, 6, { 8, 9, 7 })
         if not en.is_boss then
           en.dead = true
@@ -1569,7 +1646,7 @@ function check_collisions()
     for eb in all(ebullets) do
       if not eb.dead and collide(p, eb) then
         eb.dead = true
-      damage_player(50)
+        damage_player(50)
         shake_screen(2, 8)
         hit_flash_t = 6
         hit_stop_t = 2
@@ -1646,10 +1723,8 @@ end
 function draw_hud()
   rectfill(0, 0, 127, 9, 0)
   ?"score:" .. score, 2, 2, 7
-
   lvl_str = "lvl:" .. level .. "/" .. MAX_LEVEL
   ?lvl_str, 64 - (#lvl_str * 2), 2, 6
-
   h_width = p.max_hp * 9
   start_x = 127 - h_width
   for i = 1, p.max_hp do
@@ -1670,11 +1745,11 @@ function draw_hud()
 
   -- boss health bar
   if boss_ent and not boss_ent.dead then
-    pct = boss_ent.hp/boss_ent.max_hp
-    bc=BPHC[boss_ent.combat_phase]
-    ?"boss",10,115,bc
-    rect(10,122,118,126,5)
-    rectfill(10,122,10+flr(pct*108),126,bc)
+    pct = boss_ent.hp / boss_ent.max_hp
+    bc = BPHC[boss_ent.combat_phase]
+    ?"boss", 10, 115, bc
+    rect(10, 122, 118, 126, 5)
+    rectfill(10, 122, 10 + flr(pct * 108), 126, bc)
   end
 end
 

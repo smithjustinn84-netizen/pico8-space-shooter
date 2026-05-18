@@ -26,7 +26,7 @@ Read these from the cart, not from any markdown:
 - **Data-driven enemy types via `enemy_types` table**: fields are `sp`, `pts`, `move`, `mk_x`, `mk_vy`, `extra`. Add new variants as new keys. Spawn via `spawn_enemy("type_name")`. Never add a `spawn_enemy_N()` variant function.
 - **Global service wrappers**: play sounds via `play_sound(id)`, trigger camera shake via `shake_screen(mag, dur)`. Never call `sfx()` or assign `shake_t`/`shake_mag` directly from entity logic.
 - **Animated sprites use base+frame**: store the base index on the entity, draw via `spr(base + flr(t()*N) % frames, x, y)`. New animations should reserve a contiguous run of sprite slots and reference the first via a `S_*` constant in tab 0.
-- **Player movement is accel + friction + speed-cap**, not direct position writes. Match that model for any new movement so feel stays consistent.
+- **Player movement is direct 1:1** with diagonal normalisation, focus mode (half-speed while holding fire), and hard boundary clamping. No inertia, no drift — instant stop when input ceases. Match that model for any new movement so feel stays consistent.
 - **Globals stay global** (`state`, `p`, `entities`, `stars`, `score`, `shake_t`, `shake_mag`, `hit_flash_t`). Don't introduce module-scope `local`s — PICO-8 idiom and the 8192-token budget both prefer globals here.
 
 ## Asset pack

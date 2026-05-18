@@ -10,7 +10,7 @@ Single-cart PICO-8 game (`space.p8`). Vertical-scrolling space shooter. No build
 
 - `pico8 space.p8`, or `/Applications/PICO-8.app/Contents/MacOS/pico8 -run space.p8` on macOS.
 - `CTRL+R` inside PICO-8 hot-reloads after external edits.
-- Controls: arrows = move, Z/X = fire / start.
+- Controls: arrows = move, A (Z) = Fire, B (X) = Focus (slow-down).
 
 ## Where the rest of the documentation lives
 
