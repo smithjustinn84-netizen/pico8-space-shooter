@@ -18,8 +18,8 @@ level_waves = {
   },
   {
     "shooter:20,shooter:100",
-    "bomber:30,bomber:90,basic:10,basic:60,basic:110",
-    "shooter:15,shooter:105,bomber:45,bomber:75,chaser:30,chaser:90"
+    "shooter:30,shooter:90,basic:10,basic:60,basic:110",
+    "shooter:15,shooter:105,chaser:45,chaser:75,chaser:30,chaser:90"
   },
   {
     "tank:60,basic:20,basic:100",
@@ -27,13 +27,13 @@ level_waves = {
     "tank:35,tank:85,spinner:15,spinner:60,spinner:105,shooter:8"
   },
   {
-    "hunter:-1,chaser:20,chaser:100",
-    "tank:30,tank:90,bomber:10,bomber:60,bomber:110,diver:-1",
-    "hunter:-1,hunter:-1,shooter:10,shooter:110,spinner:45,spinner:75"
+    "diver:-1,chaser:20,chaser:100",
+    "tank:30,tank:90,shooter:10,shooter:60,shooter:110,diver:-1",
+    "diver:-1,diver:-1,shooter:10,shooter:110,spinner:45,spinner:75"
   }
 }
 
-S_ENEMY, S_ENEMY2, S_ENEMY3, S_ENEMY4, S_ENEMY5, S_BULLET, S_BULLET_PLASMA, S_BULLET_LASER, S_MUZZLE, S_MUZZLE_PLASMA, S_MUZZLE_LASER = 32, 36, 34, 38, 40, 19, 21, 23, 16, 17, 18
+S_ENEMY, S_ENEMY2, S_ENEMY3, S_ENEMY4, S_BULLET, S_BULLET_PLASMA, S_BULLET_LASER, S_MUZZLE, S_MUZZLE_PLASMA, S_MUZZLE_LASER = 32, 36, 34, 38, 19, 21, 23, 16, 17, 18
 
 SPARK_C = { 7, 9, 10 }
 EMBER_C = { 8, 9, 10 }
@@ -467,7 +467,7 @@ function init_player()
     sp_r = s[3],
     w = 8,
     h = 8,
-    hx = 2, hy = 2, hw = 4, hh = 4,
+    hx = 3, hy = 3, hw = 2, hh = 2,
     fire_delay = 0,
     base_fire_delay = s[9],
     flash_t = 0,
@@ -587,41 +587,8 @@ function update_player(obj)
   end
 end
 
-function burst_muzzle(x, y, btype)
-  if btype == "basic" then
-    add(
-      entities, make_particle(
-        x, y, {
-          cols = { 9, 10 }, ang = 0.25, ang_r = 0.25,
-          spd = 1 + rnd(1), life = 10, drag = 0.94, fade = true
-        }
-      )
-    )
-  elseif btype == "plasma" then
-    for i = 1, 4 do
-      add(
-        entities, make_particle(
-          x, y, {
-            cols = PLASMA_C, ang = 0.25, ang_r = 0.5,
-            spd = 1 + rnd(1.5), life = 10 + rnd(8), drag = 0.92, fade = true
-          }
-        )
-      )
-    end
-  elseif btype == "laser" then
-    for i = 1, 3 do
-      add(
-        entities, make_particle(
-          x, y - 2, {
-            cols = EMBER_C, ang = 0.25, ang_r = 0.35,
-            spd = 2 + rnd(2), life = 15 + rnd(10), drag = 0.92, fade = true
-          }
-        )
-      )
-    end
-  elseif btype == "spread" then
-    burst_sparks(x, y, 8, SPARK_C)
-  end
+function burst_muzzle(x, y)
+  emit_fx(x, y, 2, { cols = { 9, 10, 7 }, ang = 0.25, ang_r = 0.3, spd = 1 + rnd(1.5), life = 8, drag = 0.92, fade = true })
 end
 
 function fire_bullet(obj)
@@ -656,7 +623,7 @@ function fire_bullet(obj)
     end
     shake_screen(lv >= 2 and 2 or 1, lv >= 2 and 6 or 4)
   end
-  burst_muzzle(mx, my, btype)
+  burst_muzzle(mx, my)
   sfx(WEAPONS[btype].sfx)
 end
 
@@ -682,6 +649,18 @@ function draw_player(obj)
 
   draw_thruster(obj, dx)
   spr(s, obj.x, obj.y)
+
+  -- visible hitbox core when focused (bullet hell convention)
+  if btn(4) or btn(5) then
+    local cx = obj.x + 4
+    local cy = obj.y + 4
+    local pulse = flr(t()*8)%2==0 and 10 or 7
+    pset(cx, cy, pulse)
+    pset(cx-1, cy, 6)
+    pset(cx+1, cy, 6)
+    pset(cx, cy-1, 6)
+    pset(cx, cy+1, 6)
+  end
 
   if obj.flash_t > 0 then
     draw_muzzle_flash(obj, dx)
@@ -778,9 +757,6 @@ function player_death()
   burst_sparks(cx, cy, 24, SPARK_C)
   burst_smoke(cx, cy, 14, SMOKE_C)
   burst_embers(cx, cy, 10)
-  for i = 1, 20 do
-    add(entities, make_debris(cx, cy))
-  end
   sfx(2)
   hit_stop_t = 3
 end
@@ -813,22 +789,39 @@ end
 
 -- fire n bullets spread around aimed direction (da in pico-8 turns)
 function boss_fire(e, n, da)
+  local spd = ({1.2, 1.6, 2.0})[e.combat_phase]
   local bx = (p.x + 4) - (e.x + 16)
   local by = (p.y + 4) - (e.y + 16)
   local d = sqrt(bx * bx + by * by)
   if d == 0 then d = 1 end
-  bx = bx / d * 1.4
-  by = by / d * 1.4
+  bx = bx / d * spd
+  by = by / d * spd
   local half = (n - 1) / 2
   for i = 0, n - 1 do
     local off = (i - half) * da
     local cs = cos(off)
     local sn = sin(off)
-    local eb = make_enemy_bullet(e)
+    local eb = make_enemy_bullet(e, spd)
     eb.x = e.x + 14
     eb.y = e.y + 28
     eb.vx = bx * cs - by * sn
     eb.vy = bx * sn + by * cs
+    add(entities, eb)
+    add(ebullets, eb)
+  end
+  sfx(7)
+end
+
+-- radial ring: n bullets evenly spaced in a circle
+function boss_ring(e, n)
+  local spd = ({1.2, 1.6, 2.0})[e.combat_phase]
+  for i = 0, n - 1 do
+    local a = i / n
+    local eb = make_enemy_bullet(e, spd)
+    eb.x = e.x + 14
+    eb.y = e.y + 28
+    eb.vx = cos(a) * spd
+    eb.vy = sin(a) * spd
     add(entities, eb)
     add(ebullets, eb)
   end
@@ -904,9 +897,13 @@ enemy_types = {
       e.shoot_t -= 1
       if e.shoot_t <= 0 then
         e.shoot_t = 55
-        local eb = make_enemy_bullet(e)
-        add(entities, eb)
-        add(ebullets, eb)
+        -- 3-bullet aimed fan for bullet-hell density
+        for i = -1, 1 do
+          local eb = make_enemy_bullet(e, 1.2)
+          eb.vx += i * 0.35
+          add(entities, eb)
+          add(ebullets, eb)
+        end
         sfx(7)
       end
     end,
@@ -948,35 +945,7 @@ enemy_types = {
       spr(S_ENEMY4 + tf(16, 2), en.x, en.y)
     end
   },
-  -- bomber: enters from a random side, sweeps diagonally across the screen
-  -- uses all 4 sprite frames (40-43) for a smooth 4-frame animation
-  bomber = {
-    sp = S_ENEMY5, pts = 35,
-    mk_x = function() return 0 end,
-    mk_vy = function() return 0.6 + rnd(0.4) end,
-    extra = function(e)
-      -- spawn off either side; vx sweeps toward opposite side
-      if rnd(2) > 1 then
-        e.x = -8
-        e.vx = 0.8 + rnd(0.5)
-      else
-        e.x = 128
-        e.vx = -(0.8 + rnd(0.5))
-      end
-    end,
-    -- apply horizontal velocity and expire when fully off either side
-    move = function(e)
-      e.x += e.vx
-      if e.x > 136 then
-        e.x = -8
-      elseif e.x < -16 then
-        e.x = 136
-      end
-    end,
-    draw_fn = function(en)
-      spr(S_ENEMY5 + tf(8, 4), en.x, en.y)
-    end
-  },
+
   boss = {
     sp = 64, pts = 500,
     mk_x = function() return 48 end,
@@ -1016,7 +985,13 @@ enemy_types = {
       e.shoot_t -= 1
       if e.shoot_t <= 0 then
         e.shoot_t = BRATE[e.combat_phase]
-        boss_fire(e, BNBUL[e.combat_phase], BSPRD[e.combat_phase])
+        e.fire_count = (e.fire_count or 0) + 1
+        -- alternate aimed fan vs radial ring each cycle
+        if e.fire_count % 2 == 0 then
+          boss_fire(e, BNBUL[e.combat_phase], BSPRD[e.combat_phase])
+        else
+          boss_ring(e, BNBUL[e.combat_phase] * 2 + 2)
+        end
       end
     end,
     draw_fn = function(en)
@@ -1040,96 +1015,6 @@ enemy_types = {
   }
 }
 
--- hunter: a state-machine enemy.
--- state patrol: slides sideways at fixed depth, watching the player.
--- state dive:   drops straight toward the player at high speed.
--- 'e.state' holds whichever function is currently active;
--- e.update calls self:state() each frame to run it.
-function make_hunter()
-  local e = make_ent("enemy", 10 + rnd(100), -8)
-  e.sp = S_ENEMY3
-  e.dx = (rnd(1) > 0.5) and 0.8 or -0.8
-  -- patrol direction
-  e.vy = 0
-  e.w = 8
-  e.h = 8
-  e.pts = 60
-  e.patrol_y = 10 + rnd(20)
-  -- Y to hold during patrol
-
-  -- state 1: slide sideways until x is within 8px of the player
-  e.patrol = function(self)
-    self.x += self.dx
-    -- bounce off screen edges
-    if self.x < 4 then
-      self.x = 4
-      self.dx = 0.8
-    elseif self.x > 118 then
-      self.x = 118
-      self.dx = -0.8
-    end
-    -- approach the patrol depth
-    local dy = self.patrol_y - self.y
-    self.y += dy * 0.05
-    -- switch to dive when roughly aligned with player
-    if abs(self.x - p.x) < 10 then
-      self.state = self.dive
-    end
-  end
-
-  -- state 2: drop straight down fast
-  e.dive = function(self)
-    self.vy += 0.15
-    -- accelerate downward
-    if self.vy > 4 then self.vy = 4 end
-    self.y += self.vy
-    if tf(60, 3) == 0 then
-      burst_thruster(self.x + 4, self.y, { 10, 9, 8 }, -1)
-    end
-    if self.y > 128 then
-      self.y = -8
-      self.vy = 0
-      self.state = self.patrol
-    end
-  end
-
-  -- start in patrol state
-  e.state = e.patrol
-
-  -- override move: just dispatch to whichever state is current
-  e.move = function(self)
-    self:state()
-  end
-
-  -- yellow/gold palette: distinct from other enemy types
-  e.render = function(self)
-    local diving = (self.state == self.dive)
-    if diving then
-      apply_pal(9, 10, 9, 10, 9)
-    else
-      apply_pal(4, 14, 4, 14, 4)
-    end
-    spr(S_ENEMY3 + tf(4, 2), self.x, self.y)
-    pal()
-    -- draw a targeting reticle while patrolling
-    if not diving then
-      local blink = tf(6, 2) == 0
-      if blink then
-        line(self.x + 4, self.y + 9, self.x + 4, self.y + 14, 14)
-      end
-    end
-    draw_flash(self)
-  end
-
-  return e
-end
-
-function spawn_hunter()
-  local e = make_hunter()
-  add(entities, e)
-  add(enemies, e)
-end
-
 function load_wave(ws)
   spawn_queue = {}
   local delay = 0
@@ -1141,7 +1026,7 @@ function load_wave(ws)
 end
 
 function trigger_spawn(t, x)
-  if t == "hunter" then spawn_hunter() else spawn_enemy(t, x) end
+  spawn_enemy(t, x)
 end
 
 function make_bullet(obj, btype)
@@ -1229,17 +1114,22 @@ function make_bullet(obj, btype)
 end
 
 -- enemy bullet aimed toward the player at time of firing
-function make_enemy_bullet(src)
+-- spd param allows per-enemy/phase speed variation
+function make_enemy_bullet(src, spd)
   local dx = (p.x + 4) - (src.x + 4)
   local dy = (p.y + 4) - (src.y + 4)
   local d = sqrt(dx * dx + dy * dy)
   if d == 0 then d = 1 end
-  local spd = 1.4
+  spd = spd or 1.4
   local e = make_ent("ebullet", src.x + 1, src.y + 8)
   e.vx = (dx / d) * spd
   e.vy = (dy / d) * spd
   e.w = 6
   e.h = 6
+  e.hx = 1
+  e.hy = 1
+  e.hw = 4
+  e.hh = 4
   -- move: travel in aimed direction, leave bright trail, expire when off-screen
   e.move = function(self)
     self.x += self.vx
@@ -1417,56 +1307,9 @@ function make_popup(x, y, pts)
   return e
 end
 
-function make_debris(x, y)
-  local ang = rnd(1)
-  local spd = 1 + rnd(3)
-  local life = 30 + flr(rnd(40))
-  local col = ({ 8, 9, 10, 7, 7, 5 })[flr(rnd(6)) + 1]
-  local e = make_ent("debris", x, y)
-  e.vx = cos(ang) * spd
-  e.vy = sin(ang) * spd - 0.5
-  e.life = life
-  e.ml = life
-  e.col = col
-  -- move: physics step + gravity, drag, and lifetime countdown
-  e.move = function(self)
-    self.x += self.vx
-    self.y += self.vy
-    self.vy += 0.05
-    -- gravity
-    self.vx *= 0.97
-    -- drag
-    self.life -= 1
-    if self.life <= 0 then self.dead = true end
-  end
-  -- render: fade from bright to dark as lifetime expires
-  e.render = function(self)
-    local f = self.life / self.ml
-    local c = f > 0.5 and self.col or (f > 0.2 and 5 or 1)
-    pset(self.x, self.y, c)
-    if f > 0.5 then pset(self.x - self.vx * .4, self.y - self.vy * .4, 1) end
-  end
-  return e
-end
 
--- ============================================================
--- particle system
--- ============================================================
--- make_particle(x, y, opts) -- core constructor
---
--- opts fields (all optional, defaults shown):
---   cols   = {7}       palette of PICO-8 colour indices to pick from
---   ang    = rnd(1)    launch angle in PICO-8 turns (0-1)
---   ang_r  = 1         if >0, angle is fully random; if <1 it narrows
---                      the arc (0 = shoot exactly at ang)
---   spd    = 1+rnd(2)  launch speed in px/frame
---   life   = 20+rnd(20) frames the particle lives
---   grav   = 0         gravity added to vy each frame
---   drag   = 0.98      multiplier applied to vx,vy each frame
---   fade   = true      colour shifts dark as life expires
---   size   = 1         1=single pixel, 2=2x2 block, 0=trail only
---   trail  = false     draw a short 1-px tail behind the particle
--- ============================================================
+
+
 function make_particle(x, y, opts)
   opts = opts or {}
   -- resolve options with defaults
@@ -1613,7 +1456,7 @@ function check_collisions()
             sfx(8)
             burst_sparks(ecx, ecy, 3, SPARK_C)
             add(entities, make_hit_flash(ecx, ecy))
-            if en.is_boss then hit_stop_t = 2 end
+            -- hit-stop reserved for phase transitions & kills only
           else
             if b.pierce then
               b.hp_left -= (en.hp or 1)
@@ -1642,15 +1485,28 @@ function check_collisions()
     end
   end
   -- 3. enemy bullets vs player
-  if p.iframes <= 0 then
-    for eb in all(ebullets) do
-      if not eb.dead and collide(p, eb) then
+  for eb in all(ebullets) do
+    if not eb.dead then
+      if p.iframes <= 0 and collide(p, eb) then
         eb.dead = true
         damage_player(50)
         shake_screen(2, 8)
         hit_flash_t = 6
         hit_stop_t = 2
+        burst_sparks(p.x+4, p.y+4, 8, {8,9,10})
         sfx(2)
+      -- graze: near-miss detection (wider 6×6 zone vs 2×2 hitbox)
+      elseif not eb.grazed then
+        local gx, gy = p.x+1, p.y+1
+        local bx, by = eb.x+(eb.hx or 0), eb.y+(eb.hy or 0)
+        local bw, bh = eb.hw or eb.w, eb.hh or eb.h
+        if not (gx >= bx+bw or gx+6 <= bx or gy >= by+bh or gy+6 <= by) then
+          eb.grazed = true
+          score += 1
+          add(entities, make_particle(p.x+4, p.y+4, {
+            cols={7,12}, spd=0.5, life=5, fade=true
+          }))
+        end
       end
     end
   end
