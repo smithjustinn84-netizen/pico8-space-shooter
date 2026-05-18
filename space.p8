@@ -13,8 +13,8 @@ level_waves = {
   },
   {
     "chaser:15,chaser:105",
-    "diver:-1,diver:-1,basic:20,basic:100",
-    "chaser:10,chaser:110,diver:-1,diver:-1,zigzag:40,zigzag:80"
+    "chaser:30,chaser:90,basic:20,basic:100",
+    "chaser:10,chaser:110,zigzag:20,zigzag:60,zigzag:100"
   },
   {
     "shooter:20,shooter:100",
@@ -27,9 +27,9 @@ level_waves = {
     "tank:35,tank:85,spinner:15,spinner:60,spinner:105,shooter:8"
   },
   {
-    "diver:-1,chaser:20,chaser:100",
-    "tank:30,tank:90,shooter:10,shooter:60,shooter:110,diver:-1",
-    "diver:-1,diver:-1,shooter:10,shooter:110,spinner:45,spinner:75"
+    "shooter:20,chaser:60,chaser:100",
+    "tank:30,tank:90,shooter:10,shooter:60,shooter:110",
+    "chaser:20,chaser:100,shooter:10,shooter:110,spinner:45,spinner:75"
   }
 }
 
@@ -276,6 +276,16 @@ function make_end_state(win)
     update = function()
       go_t += 1
       update_stars()
+      if win and go_t > 0 and go_t % 30 == 0 then
+        sfx(61)
+        local fx, fy = 10 + rnd(108), 10 + rnd(80)
+        local c1 = 8 + flr(rnd(7))
+        local c2 = 8 + flr(rnd(7))
+        for i=1, 25 do
+          add(entities, make_particle(fx, fy, {cols={7, c1, c2}, spd=1+rnd(3), life=20+rnd(30), grav=0.03, drag=0.95, trail=true}))
+        end
+        add(entities, make_shockwave(fx, fy))
+      end
       for e in all(entities) do
         e.update(e)
         if e.dead then
@@ -311,6 +321,9 @@ function make_end_state(win)
       end
       if go_t > 90 and flr(go_t / 8) % 2 == 0 then
         ?"a:retry  b:title", 26, ty + 36, 6
+      end
+      if win and go_t > 120 then
+        ?"by justin smith", 32, ty + 44, 10
       end
     end
   }
@@ -873,19 +886,6 @@ enemy_types = {
     mk_x = function() return 30 + rnd(60) end,
     mk_vy = function() return 0.8 + rnd(0.4) end,
     extra = function(e) e.hp = 2 e.ox = e.x e.phase = rnd(1) end
-  },
-  -- spawns directly above the player and dives fast
-  -- red/fiery palette: aggressive, danger signal
-  diver = {
-    sp = S_ENEMY, pts = 20,
-    move = function(e) if tf(60, 4) == 0 then burst_thruster(e.x + 4, e.y, { 8, 9, 7 }, -1) end end,
-    mk_x = function() return p.x end,
-    mk_vy = function() return 1.8 + rnd(0.8) end,
-    draw_fn = function(en)
-      apply_pal(8, 9, 8, 10, 9)
-      spr(S_ENEMY + tf(4, 2), en.x, en.y)
-      pal()
-    end
   },
   -- steers toward the player horizontally
   -- purple/indigo palette: eerie, alien
@@ -1807,7 +1807,7 @@ __sfx__
 0006000013430174301a4301743013430174301a4301743013430174301a4301743013430174301a4301743013430174301a4301743013430174301a4301743013430174301a4301743013430174301a43017430
 00060000131611416115161161611716118161191611a1611b1610000000000000001f161000001f161000001f161000000000000000000000000000000000000000000000000000000000000000000000000000
 000300001e15022150251502a1502e150311500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00030000143511e351233500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __music__
