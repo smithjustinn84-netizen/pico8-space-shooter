@@ -4,6 +4,8 @@ __lua__
 -- tab 0: core logic
 
 MAX_LEVEL = 5
+-- debug: skip to boss with plasma lv3 (set false to disable)
+DEBUG_BOSS = true
 
 level_waves = {
   {
@@ -185,6 +187,12 @@ game_state = {
     init_player()
     shake_t, shake_mag, hit_flash_t, death_flash_t, death_timer, stage_completing, boss_spawned, boss_ent, current_wave, wave_spawned, hit_stop_t, reached_hi_score_this_run = 0, 0, 0, 0, 0, false, false, nil, 1, false, 0, false
     spawn_queue = {}
+    -- debug: jump straight to boss stage with plasma fully upgraded
+    if DEBUG_BOSS then
+      level = MAX_LEVEL + 1
+      p.weapon = "plasma"
+      p.weapon_lv = 3
+    end
   end,
   update = function()
     update_stars()
@@ -1037,6 +1045,7 @@ enemy_types = {
       e.t = 0
       e.attack_t = 0
       e.combat_phase = 1
+      e.armor = 1
       e.shoot_t = 60
       boss_ent = e
     end,
@@ -1044,6 +1053,7 @@ enemy_types = {
       -- stage transitions: shake, flash, clear bullets, brief pause
       if e.combat_phase < 2 and e.hp <= 100 then
         e.combat_phase = 2
+        e.armor = 1
         shake_screen(4, 15)
         e.flash = 8
         for eb in all(ebullets) do eb.dead = true end
@@ -1052,6 +1062,7 @@ enemy_types = {
       end
       if e.combat_phase < 3 and e.hp <= 50 then
         e.combat_phase = 3
+        e.armor = 0
         shake_screen(6, 20)
         e.flash = 8
         for eb in all(ebullets) do eb.dead = true end
@@ -1082,17 +1093,6 @@ enemy_types = {
     draw_fn = function(en)
       -- handle flash here: draw_flash() uses 8x8 spr, wrong for 16x16 boss
       local do_flash = en.flash and en.flash > 0
-      local cx, cy = en.x + 8, en.y + 8
-      -- aura drawn first so the sprite sits on top
-      if not do_flash then
-        if en.combat_phase == 1 then
-          -- calm cyan halo
-          circ(cx, cy, 11 + flr(sin(t()) * 1.5), 12)
-        elseif en.combat_phase == 3 then
-          -- inferno red pulse
-          circ(cx, cy, 11 + flr(sin(t() * 4) * 2), 8)
-        end
-      end
       -- palette swaps per phase: shift body colors to phase signature
       if do_flash then
         for c = 0, 15 do
@@ -1539,6 +1539,7 @@ function check_collisions()
       for b in all(bullets) do
         if not b.dead and collide(en, b) then
           local dmg = b.dmg or 1
+          if en.armor then dmg = max(1, dmg - en.armor) end
           if not b.pierce then b.dead = true end
           if en.hp and en.hp > dmg then
             en.hp -= dmg
