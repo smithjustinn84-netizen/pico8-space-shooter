@@ -2,13 +2,17 @@
 backup/
 *.bak
 
-# PICO-8 Exported files
-# (uncomment if you use specific export folders)
-# export/
-# bin/
+# PICO-8 exports
+*.bin
+*.zip
+export/
+html/
 
-# OS specific files
-.DS_Store
+# OS specific
+**/.DS_Store
 Thumbs.db
 *.swp
 *.lock
+
+# AI tool configs
+.gemini/

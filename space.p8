@@ -288,16 +288,14 @@ game_state = {
 function make_end_state(win)
   local txt = win and "you win!" or "game over"
   local cols = win and { 11, 3, 11, 3 } or { 8, 9, 10, 9 }
-  local mx = win and 38 or 37
   return {
     update = function()
       go_t += 1
       update_stars()
-      if win and go_t > 0 and go_t % 30 == 0 then
+      if win and go_t % 30 == 0 then
         sfx(61)
         local fx, fy = 10 + rnd(108), 10 + rnd(80)
-        local c1 = 8 + flr(rnd(7))
-        local c2 = 8 + flr(rnd(7))
+        local c1, c2 = 8 + flr(rnd(7)), 8 + flr(rnd(7))
         for i = 1, 25 do
           add(entities, make_particle(fx, fy, { cols = { 7, c1, c2 }, spd = 1 + rnd(3), life = 20 + rnd(30), grav = 0.03, drag = 0.95, trail = true }))
         end
@@ -305,10 +303,7 @@ function make_end_state(win)
       end
       for e in all(entities) do
         e.update(e)
-        if e.dead then
-          del(entities, e)
-          if sublists[e.tag] then del(sublists[e.tag], e) end
-        end
+        if e.dead then del(entities, e) end
       end
       if go_t > 90 then
         if btnp(4) then go_to_game() end
@@ -327,14 +322,13 @@ function make_end_state(win)
       end
       wx = flr(sin(go_t * 0.07) * 1.5)
       cc = cols[flr(go_t * 0.08) % 4 + 1]
-      ?txt, mx + wx + 1, ty + 1, 1
-      ?txt, mx + wx, ty, cc
+      ?txt, 38 + wx, ty + 1, 1
+      ?txt, 37 + wx, ty, cc
       if go_t > 45 then
         ?"score: " .. final_score, 42, ty + 16, go_t > 65 and 7 or 6
       end
       if go_t > 60 then
-        hc = final_score >= hi_score and 10 or 6
-        ?"best:  " .. hi_score, 42, ty + 24, hc
+        ?"best:  " .. hi_score, 42, ty + 24, final_score >= hi_score and 10 or 6
       end
       if go_t > 90 and flr(go_t / 8) % 2 == 0 then
         ?"a:retry  b:title", 26, ty + 36, 6
@@ -814,7 +808,7 @@ function tick_life(s)
   if s.h > s.max_h then s.dead = true end
 end
 
--- telegraph: brief red aim-dot along boss→player line, warns the next aimed burst
+-- telegraph: brief red aim-dot along bossヌ●★player line, warns the next aimed burst
 function boss_telegraph(e)
   local dx = (p.x + 4) - (e.x + 8)
   local dy = (p.y + 4) - (e.y + 8)
@@ -1131,11 +1125,11 @@ enemy_types = {
         end
         en.flash -= 1
       elseif en.combat_phase == 3 then
-        -- raging red: green outline + pink/blue body → red, white-hot flicker
+        -- raging red: green outline + pink/blue body ヌ●★ red, white-hot flicker
         pal(11, 8) pal(14, 8) pal(12, 8) pal(3, 2)
         if tf(10, 2) == 0 then pal(8, 7) end
       elseif en.combat_phase == 2 then
-        -- agitated orange: green/pink/blue → orange/yellow
+        -- agitated orange: green/pink/blue ヌ●★ orange/yellow
         pal(11, 9) pal(14, 9) pal(12, 10)
       end
       -- sprite x on sheet: idle (0,32) when calm, attack (16,32) when firing
@@ -1261,6 +1255,7 @@ function make_enemy_bullet(src, spd)
   e.hy = 1
   e.hw = 4
   e.hh = 4
+  e.is_boss = src.is_boss
   -- move: travel in aimed direction, leave bright trail, expire when off-screen
   e.move = function(self)
     self.x += self.vx
@@ -1278,22 +1273,26 @@ function make_enemy_bullet(src, spd)
       self.dead = true
     end
   end
-  -- render: bright 3x3 cross with hot-white core
+  -- render: animated sprite for boss, cross for others
   e.render = function(self)
-    local cx = self.x + 2
-    local cy = self.y + 2
-    -- outer arms (orange)
-    pset(cx, cy - 2, 9)
-    pset(cx, cy + 2, 9)
-    pset(cx - 2, cy, 9)
-    pset(cx + 2, cy, 9)
-    -- inner ring (yellow)
-    pset(cx, cy - 1, 10)
-    pset(cx, cy + 1, 10)
-    pset(cx - 1, cy, 10)
-    pset(cx + 1, cy, 10)
-    -- hot white core
-    pset(cx, cy, 7)
+    if self.is_boss then
+      spr(17 + tf(4, 2), self.x, self.y)
+    else
+      local cx = self.x + 2
+      local cy = self.y + 2
+      -- outer arms (orange)
+      pset(cx, cy - 2, 9)
+      pset(cx, cy + 2, 9)
+      pset(cx - 2, cy, 9)
+      pset(cx + 2, cy, 9)
+      -- inner ring (yellow)
+      pset(cx, cy - 1, 10)
+      pset(cx, cy + 1, 10)
+      pset(cx - 1, cy, 10)
+      pset(cx + 1, cy, 10)
+      -- hot white core
+      pset(cx, cy, 7)
+    end
   end
   return e
 end
@@ -1775,12 +1774,12 @@ __gfx__
 000000000055550088800888056cc6500055000088588e0005556000000055000e88588000065550000000000008800000088000000000000008800000088000
 00000000007007005500005505c00c50077000005605650005cc660000000770057507500066cc50000000000000000000088000000000000000000000000000
 00000000000000000000000000080000000800000000000000000000000b00000030300000000000009a0a900500005000000000000000000000000000000000
-0000000000088000000990000089800000898000001cc10000111100000b0000003b30000007700009a77a905006600500000000000000000000000000000000
-000000000082280000822800089a98000897980001cddc10011cc110003b3000003b3000007aa7009a7887a90060060000000000000000000000000000000000
-000a00000828e2800927a29008a7a800087778000cddddc001cccc10003b3000000b0000007aa700a787787a0600006000073000000b70000000000000000000
-009aa9000828828009277290009a9000009790000cddddc001cccc10003b3000000b000000077000a787787a060000600076b300003b67000000000000000000
-008aa8000082280000822800008980000089800001cddc10011cc110003b3000003b3000000000009a7887a90060060000b6b300003b6b000000000000000000
-0089980000088000000990000008000000080000001cc10000111100000b0000003b30000000000009a77a90500660050033b300003b63000000000000000000
+0000000000088000000990000089800000898000001cc10000111100000b0000003b30000007700009a77a905006600500000000000000000200002000000000
+000000000082280000822800089a98000897980001cddc10011cc110003b3000003b3000007aa7009a7887a90060060000000000000000000822228000000000
+000a00000828e2800927a29008a7a800087778000cddddc001cccc10003b3000000b0000007aa700a787787a0600006000073000000b70000889988000000000
+009aa9000828828009277290009a9000009790000cddddc001cccc10003b3000000b000000077000a787787a060000600076b300003b6700028aa82000000000
+008aa8000082280000822800008980000089800001cddc10011cc110003b3000003b3000000000009a7887a90060060000b6b300003b6b000289982000000000
+0089980000088000000990000008000000080000001cc10000111100000b0000003b30000000000009a77a90500660050033b300003b63000008800000000000
 00088000000000000000000000000000000000000000000000000000000b00000030300000000000009aa9000500005000033000000330000000000000000000
 005333000053330000000000000000000530033005000030000e0000000000002004400240044004a004400aa004400a00000000000000000000000000000000
 053b3330053b3330055555500555555053b33b335b3003b3002e20000e000e00042222400a2222a0042442400024420000000000000000000000000000000000

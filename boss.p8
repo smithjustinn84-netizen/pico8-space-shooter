@@ -957,22 +957,9 @@ function make_enemy_bullet(src, spd)
       self.dead = true
     end
   end
-  -- render: bright 3x3 cross with hot-white core
+  -- render: animated sprite
   e.render = function(self)
-    local cx = self.x + 2
-    local cy = self.y + 2
-    -- outer arms (orange)
-    pset(cx, cy - 2, 9)
-    pset(cx, cy + 2, 9)
-    pset(cx - 2, cy, 9)
-    pset(cx + 2, cy, 9)
-    -- inner ring (yellow)
-    pset(cx, cy - 1, 10)
-    pset(cx, cy + 1, 10)
-    pset(cx - 1, cy, 10)
-    pset(cx + 1, cy, 10)
-    -- hot white core
-    pset(cx, cy, 7)
+    spr(17 + tf(4, 2), self.x, self.y)
   end
   return e
 end
