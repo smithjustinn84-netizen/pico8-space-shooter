@@ -817,6 +817,20 @@ function tick_life(s)
   if s.h > s.max_h then s.dead = true end
 end
 
+-- telegraph: brief red aim-dot along boss→player line, warns the next aimed burst
+function boss_telegraph(e)
+  local dx = (p.x + 4) - (e.x + 8)
+  local dy = (p.y + 4) - (e.y + 8)
+  local d = sqrt(dx * dx + dy * dy)
+  local tx = e.x + 8 + dx / d * 16
+  local ty = e.y + 8 + dy / d * 16
+  local tg = make_ent("fx", tx - 1, ty - 1)
+  tg.h, tg.max_h = 0, 10
+  tg.render = function(s) circfill(s.x + 1, s.y + 1, 1, 8) pset(s.x + 1, s.y + 1, 7) end
+  tg.move = tick_life
+  add(entities, tg)
+end
+
 -- spawn one enemy bullet from boss center with given velocity
 function boss_shoot_one(e, vx, vy)
   local eb = make_enemy_bullet(e, 1)
@@ -850,25 +864,41 @@ end
 -- [3] storm: round-robin ring / fan / counter-spiral
 boss_fire = {
   function(e)
-    boss_aimed_fan(e, 5, 0.06, 1.1)
-    e.shoot_t = 70
+    -- alternate aimed fan with a 2-shot harass; telegraph the next fan during harass
+    e.p1_step = (e.p1_step or 0) + 1
+    if e.p1_step % 2 == 1 then
+      boss_aimed_fan(e, 5, 0.06, 1.1)
+      e.shoot_t = 30
+    else
+      boss_aimed_fan(e, 2, 0.10, 0.9)
+      boss_telegraph(e)
+      e.shoot_t = 25
+    end
   end,
   function(e)
     local spd = 1.3
     e.spiral_a = (e.spiral_a or 0) + 0.025
     boss_shoot_one(e, cos(e.spiral_a) * spd, sin(e.spiral_a) * spd)
     boss_shoot_one(e, cos(e.spiral_a + 0.5) * spd, sin(e.spiral_a + 0.5) * spd)
-    e.shoot_t = 14
+    -- periodic aimed sweep keeps player out of static dodge pocket
+    e.p2_step = (e.p2_step or 0) + 1
+    if e.p2_step % 6 == 0 then
+      boss_aimed_fan(e, 1, 0, 1.5)
+    end
+    e.shoot_t = 12
   end,
   function(e)
     e.fire_count = (e.fire_count or 0) + 1
     local m = e.fire_count % 3
     if m == 1 then
+      -- rotating safe-spot: ring phase drifts each cycle so player can't park
+      local off = (e.fire_count * 0.07) % 1
       for i = 0, 13 do
-        local a = i / 14
+        local a = i / 14 + off
         boss_shoot_one(e, cos(a) * 1.2, sin(a) * 1.2)
       end
     elseif m == 2 then
+      boss_telegraph(e)
       boss_aimed_fan(e, 7, 0.07, 1.6)
     else
       e.spiral_a = (e.spiral_a or 0) + 0.03
@@ -878,7 +908,7 @@ boss_fire = {
         boss_shoot_one(e, cos(-a) * 1.3, sin(-a) * 1.3)
       end
     end
-    e.shoot_t = 32
+    e.shoot_t = 26
   end
 }
 
