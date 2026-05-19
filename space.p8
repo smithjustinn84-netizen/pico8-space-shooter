@@ -1096,17 +1096,30 @@ enemy_types = {
     draw_fn = function(en)
       -- handle flash here: draw_flash() uses 8x8 spr, wrong for 16x16 boss
       local do_flash = en.flash and en.flash > 0
+      local cx, cy = en.x + 8, en.y + 8
+      -- aura drawn first so the sprite sits on top
+      if not do_flash then
+        if en.combat_phase == 1 then
+          -- calm cyan halo
+          circ(cx, cy, 11 + flr(sin(t()) * 1.5), 12)
+        elseif en.combat_phase == 3 then
+          -- inferno red pulse
+          circ(cx, cy, 11 + flr(sin(t() * 4) * 2), 8)
+        end
+      end
+      -- palette swaps per phase: shift body colors to phase signature
       if do_flash then
         for c = 0, 15 do
           pal(c, 7)
         end
         en.flash -= 1
       elseif en.combat_phase == 3 then
-        if tf(8, 2) == 0 then
-          pal(10, 8) pal(9, 8)
-        end
+        -- raging red: green outline + pink/blue body → red, white-hot flicker
+        pal(11, 8) pal(14, 8) pal(12, 8) pal(3, 2)
+        if tf(10, 2) == 0 then pal(8, 7) end
       elseif en.combat_phase == 2 then
-        pal(10, 9)
+        -- agitated orange: green/pink/blue → orange/yellow
+        pal(11, 9) pal(14, 9) pal(12, 10)
       end
       -- sprite x on sheet: idle (0,32) when calm, attack (16,32) when firing
       local sx = (en.attack_t > 0) and 16 or 0
