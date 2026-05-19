@@ -791,12 +791,8 @@ end
 
 -->8
 -- tab 3: entities
--- boss phase data: spd,wide,phc,rate,nbul,sprd per phase
-BSPD, BWIDE, BPHC, BRATE, BNBUL, BSPRD = {}, {}, {}, {}, {}, {}
-for i, r in ipairs(split("0.02:30:11:60:1:0,0.035:30:9:45:3:0.08,0.05:40:8:30:5:0.07")) do
-  local s = split(r, ":", true)
-  BSPD[i], BWIDE[i], BPHC[i], BRATE[i], BNBUL[i], BSPRD[i] = s[1], s[2], s[3], s[4], s[5], s[6]
-end
+-- boss hp-bar color per stage (1=cyan,2=orange,3=red)
+BPHC = {11, 9, 8}
 
 -- base entity constructor: creates a table with shared fields
 -- and default update/draw stubs that call self:move() / self:render().
@@ -815,44 +811,74 @@ function move_zigzag(e)
   e.x = mid(0, e.ox + 30 * sin(e.phase), 120)
 end
 
--- fire n bullets spread around aimed direction (da in pico-8 turns)
-function boss_fire(e, n, da)
-  local spd = ({1.2, 1.6, 2.0})[e.combat_phase]
-  local bx = (p.x + 4) - (e.x + 16)
-  local by = (p.y + 4) - (e.y + 16)
+-- spawn one enemy bullet from boss center with given velocity
+function boss_shoot_one(e, vx, vy)
+  local eb = make_enemy_bullet(e, 1)
+  eb.x = e.x + 6
+  eb.y = e.y + 6
+  eb.vx = vx
+  eb.vy = vy
+  add(entities, eb)
+  add(ebullets, eb)
+end
+
+-- shared aimed fan: n bullets, angular spread, speed; centered on aim vector
+function boss_aimed_fan(e, n, spread, spd)
+  local bx = (p.x + 4) - (e.x + 8)
+  local by = (p.y + 4) - (e.y + 8)
   local d = sqrt(bx * bx + by * by)
   if d == 0 then d = 1 end
   bx = bx / d * spd
   by = by / d * spd
   local half = (n - 1) / 2
   for i = 0, n - 1 do
-    local off = (i - half) * da
+    local off = (i - half) * spread
     local cs = cos(off)
     local sn = sin(off)
-    local eb = make_enemy_bullet(e, spd)
-    eb.x = e.x + 14
-    eb.y = e.y + 28
-    eb.vx = bx * cs - by * sn
-    eb.vy = bx * sn + by * cs
-    add(entities, eb)
-    add(ebullets, eb)
+    boss_shoot_one(e, bx * cs - by * sn, bx * sn + by * cs)
   end
+end
+
+-- stage 1 "sweeper": sparse, telegraphed 5-bullet aimed fan
+function stage1_fire(e)
+  boss_aimed_fan(e, 5, 0.06, 1.1)
+  e.shoot_t = 70
   sfx(7)
 end
 
--- radial ring: n bullets evenly spaced in a circle
-function boss_ring(e, n)
-  local spd = ({1.2, 1.6, 2.0})[e.combat_phase]
-  for i = 0, n - 1 do
-    local a = i / n
-    local eb = make_enemy_bullet(e, spd)
-    eb.x = e.x + 14
-    eb.y = e.y + 28
-    eb.vx = cos(a) * spd
-    eb.vy = sin(a) * spd
-    add(entities, eb)
-    add(ebullets, eb)
+-- stage 2 "spiral": rotating dual-stream, forces constant motion
+function stage2_fire(e)
+  local spd = 1.3
+  e.spiral_a = (e.spiral_a or 0) + 0.025
+  boss_shoot_one(e, cos(e.spiral_a) * spd, sin(e.spiral_a) * spd)
+  boss_shoot_one(e, cos(e.spiral_a + 0.5) * spd, sin(e.spiral_a + 0.5) * spd)
+  e.shoot_t = 14
+  sfx(7)
+end
+
+-- stage 3 "storm": three-shot round-robin (ring / fan / counter-spiral)
+function stage3_fire(e)
+  e.fire_count = (e.fire_count or 0) + 1
+  local m = e.fire_count % 3
+  if m == 1 then
+    -- dense 14-bullet ring
+    for i = 0, 13 do
+      local a = i / 14
+      boss_shoot_one(e, cos(a) * 1.2, sin(a) * 1.2)
+    end
+  elseif m == 2 then
+    -- wide aimed fan, faster bullets
+    boss_aimed_fan(e, 7, 0.07, 1.6)
+  else
+    -- counter-rotating spiral burst
+    e.spiral_a = (e.spiral_a or 0) + 0.03
+    for i = 0, 3 do
+      local a = e.spiral_a + i * 0.25
+      boss_shoot_one(e, cos(a) * 1.3, sin(a) * 1.3)
+      boss_shoot_one(e, cos(-a) * 1.3, sin(-a) * 1.3)
+    end
   end
+  e.shoot_t = 32
   sfx(7)
 end
 
@@ -1001,54 +1027,74 @@ enemy_types = {
 
   boss = {
     sp = 64, pts = 500,
-    mk_x = function() return 48 end,
+    mk_x = function() return 56 end,
     mk_vy = function() return 0.2 end,
     extra = function(e)
       e.hp = 150
       e.max_hp = 150
       e.is_boss = true
-      e.w = 32
-      e.h = 32
-      e.hx = 4
-      e.hy = 4
-      e.hw = 24
-      e.hh = 24
-      e.phase = 0
+      -- 16x16 sprite (sheet 0,32 idle / 16,32 attack), tight hitbox
+      e.w = 16
+      e.h = 16
+      e.hx = 2
+      e.hy = 2
+      e.hw = 12
+      e.hh = 12
+      -- upper-center anchor, Lissajous drift
+      e.cx_anchor = 56
+      e.cy_anchor = 30
+      e.t = 0
+      e.attack_t = 0
       e.combat_phase = 1
       e.shoot_t = 60
       boss_ent = e
     end,
     move = function(e)
-      -- phase transitions on hp thresholds
+      -- stage transitions: shake, flash, clear bullets, brief pause
       if e.combat_phase < 2 and e.hp <= 100 then
-        e.combat_phase = 2 shake_screen(4, 15) e.flash = 8
+        e.combat_phase = 2
+        shake_screen(4, 15)
+        e.flash = 8
+        for eb in all(ebullets) do eb.dead = true end
+        hit_stop_t = 6
+        e.shoot_t = 30
       end
       if e.combat_phase < 3 and e.hp <= 50 then
-        e.combat_phase = 3 shake_screen(6, 20) e.flash = 8
+        e.combat_phase = 3
+        shake_screen(6, 20)
+        e.flash = 8
+        for eb in all(ebullets) do eb.dead = true end
+        hit_stop_t = 6
+        e.shoot_t = 30
       end
-      -- oscillation: faster and wider each phase
-      local spd = BSPD[e.combat_phase]
-      local wide = BWIDE[e.combat_phase]
-      e.phase += spd
-      e.x = 48 + sin(e.phase) * wide
-      if e.y > 10 then
-        e.y = 10 e.vy = 0
+      -- descend to anchor, then slow Lissajous around upper-center
+      if e.vy > 0 then
+        if e.y >= e.cy_anchor then
+          e.y = e.cy_anchor
+          e.vy = 0
+        end
+      else
+        e.t += 1
+        e.x = e.cx_anchor + sin(e.t * 0.003) * 24
+        e.y = e.cy_anchor + sin(e.t * 0.0045) * 8
       end
-      -- shoot countdown
+      -- attack pose timer
+      if e.attack_t > 0 then e.attack_t -= 1 end
+      -- fire (each stage sets its own shoot_t cooldown)
       e.shoot_t -= 1
       if e.shoot_t <= 0 then
-        e.shoot_t = BRATE[e.combat_phase]
-        e.fire_count = (e.fire_count or 0) + 1
-        -- alternate aimed fan vs radial ring each cycle
-        if e.fire_count % 2 == 0 then
-          boss_fire(e, BNBUL[e.combat_phase], BSPRD[e.combat_phase])
+        if e.combat_phase == 1 then
+          stage1_fire(e)
+        elseif e.combat_phase == 2 then
+          stage2_fire(e)
         else
-          boss_ring(e, BNBUL[e.combat_phase] * 2 + 2)
+          stage3_fire(e)
         end
+        e.attack_t = 10
       end
     end,
     draw_fn = function(en)
-      -- handle flash here: draw_flash() uses 8x8 spr, wrong for 32x32 boss
+      -- handle flash here: draw_flash() uses 8x8 spr, wrong for 16x16 boss
       local do_flash = en.flash and en.flash > 0
       if do_flash then
         for c = 0, 15 do
@@ -1062,7 +1108,9 @@ enemy_types = {
       elseif en.combat_phase == 2 then
         pal(10, 9)
       end
-      sspr(tf(4, 4) * 32, 32, 32, 32, en.x, en.y)
+      -- sprite x on sheet: idle (0,32) when calm, attack (16,32) when firing
+      local sx = (en.attack_t > 0) and 16 or 0
+      sspr(sx, 32, 16, 16, en.x, en.y)
       pal()
     end
   }
