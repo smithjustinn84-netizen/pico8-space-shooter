@@ -215,7 +215,6 @@ game_state = {
 function make_end_state(win)
   local txt = win and "you win!" or "game over"
   local cols = win and { 11, 3, 11, 3 } or { 8, 9, 10, 9 }
-  local sx = win and 39 or 38
   local mx = win and 38 or 37
   return {
     update = function()
@@ -255,7 +254,7 @@ function make_end_state(win)
       end
       wx = flr(sin(go_t * 0.07) * 1.5)
       cc = cols[flr(go_t * 0.08) % 4 + 1]
-      ?txt, sx + wx, ty + 1, 1
+      ?txt, mx + wx + 1, ty + 1, 1
       ?txt, mx + wx, ty, cc
       if go_t > 45 then
         ?"score: " .. final_score, 42, ty + 16, go_t > 65 and 7 or 6
@@ -266,9 +265,6 @@ function make_end_state(win)
       end
       if go_t > 90 and flr(go_t / 8) % 2 == 0 then
         ?"a:retry  b:title", 26, ty + 36, 6
-      end
-      if win and go_t > 120 then
-        ?"by justin smith", 32, ty + 44, 10
       end
     end
   }
@@ -379,8 +375,18 @@ function init_player()
 end
 
 function update_player(obj)
-  local dx, dy = 0, 0
+  if state == win_state then
+    obj.vx = 0
+    obj.vy = -0.6
+    obj.x += obj.vx
+    obj.y += obj.vy
+    if tf(60, 2) == 0 then
+      burst_thruster(obj.x + 4, obj.y + 8, obj.t_cols, 1)
+    end
+    return
+  end
 
+  local dx, dy = 0, 0
   if btn(0) then dx -= 1 end
   if btn(1) then dx += 1 end
   if btn(2) then dy -= 1 end

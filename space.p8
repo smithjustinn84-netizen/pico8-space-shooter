@@ -3,9 +3,7 @@ version 43
 __lua__
 -- tab 0: core logic
 
-MAX_LEVEL = 5
--- debug: skip to boss with plasma lv3 (set false to disable)
-DEBUG_BOSS = true
+MAX_LEVEL = 6
 
 level_waves = {
   {
@@ -32,6 +30,11 @@ level_waves = {
     "shooter:20,chaser:60,chaser:100",
     "tank:30,tank:90,shooter:10,shooter:60,shooter:110",
     "chaser:20,chaser:100,shooter:10,shooter:110,spinner:45,spinner:75"
+  },
+  {
+    "spinner:15,spinner:105,shooter:60,spinner:30,spinner:90,chaser:40,chaser:80",
+    "tank:35,tank:85,shooter:15,shooter:105,zigzag:20,zigzag:100,chaser:60",
+    "tank:60,spinner:15,spinner:105,chaser:30,chaser:90,shooter:20,shooter:100,zigzag:45,zigzag:75"
   }
 }
 
@@ -55,10 +58,10 @@ WEAPONS = {
 }
 -- per-weapon level offsets: W_OFF[btype][min(lv,3)] -> array applied to b.x (or b.vx if W_VX[btype])
 W_OFF = {
-  basic  = { { 0 }, { -3, 3 }, { -4, 0, 4 } },
+  basic = { { 0 }, { -3, 3 }, { -4, 0, 4 } },
   spread = { { -2.5, 0, 2.5 }, { -3.5, 0, 3.5 }, { -4, -2, 0, 2, 4 } },
   plasma = { { -4, 4 }, { -4, 0, 4 }, { -6, -2, 2, 6 } },
-  laser  = { { 0 }, { 0 }, { -4, 4 } }
+  laser = { { 0 }, { 0 }, { -4, 4 } }
 }
 W_VX = { spread = true }
 function tf(n, m) return flr(t() * n) % m end
@@ -159,17 +162,17 @@ title_state = {
       sx, sy = 46 + (i - 1) * 16, 60
       if selected_ship == i then
         circfill(sx + 3, sy + 3, 8, 5)
-        ?types[i], 64 - #types[i] * 2, 74, 6
+        print(types[i], 64 - #types[i] * 2, 74, 6)
         s = ships[i]
-        ?"hp:", 30, 82, 6
+        print("hp:", 30, 82, 6)
         for h = 1, s[5] do
           spr(14, 46 + (h - 1) * 9, 81)
         end
-        ?"spd:", 30, 90, 6
+        print("spd:", 30, 90, 6)
         for b = 1, s[6] - 1 do
           rectfill(46 + (b - 1) * 6, 90, 50 + (b - 1) * 6, 95, 7)
         end
-        ?"gun: " .. s[4], 30, 98, 6
+        print("gun: " .. s[4], 30, 98, 6)
       end
       spr(ships[i][1], sx, sy)
     end
@@ -187,12 +190,6 @@ game_state = {
     init_player()
     shake_t, shake_mag, hit_flash_t, death_flash_t, death_timer, stage_completing, boss_spawned, boss_ent, current_wave, wave_spawned, hit_stop_t, reached_hi_score_this_run = 0, 0, 0, 0, 0, false, false, nil, 1, false, 0, false
     spawn_queue = {}
-    -- debug: jump straight to boss stage with plasma fully upgraded
-    if DEBUG_BOSS then
-      level = MAX_LEVEL + 1
-      p.weapon = "plasma"
-      p.weapon_lv = 3
-    end
   end,
   update = function()
     update_stars()
@@ -291,7 +288,6 @@ game_state = {
 function make_end_state(win)
   local txt = win and "you win!" or "game over"
   local cols = win and { 11, 3, 11, 3 } or { 8, 9, 10, 9 }
-  local sx = win and 39 or 38
   local mx = win and 38 or 37
   return {
     update = function()
@@ -302,8 +298,8 @@ function make_end_state(win)
         local fx, fy = 10 + rnd(108), 10 + rnd(80)
         local c1 = 8 + flr(rnd(7))
         local c2 = 8 + flr(rnd(7))
-        for i=1, 25 do
-          add(entities, make_particle(fx, fy, {cols={7, c1, c2}, spd=1+rnd(3), life=20+rnd(30), grav=0.03, drag=0.95, trail=true}))
+        for i = 1, 25 do
+          add(entities, make_particle(fx, fy, { cols = { 7, c1, c2 }, spd = 1 + rnd(3), life = 20 + rnd(30), grav = 0.03, drag = 0.95, trail = true }))
         end
         add(entities, make_shockwave(fx, fy))
       end
@@ -331,7 +327,7 @@ function make_end_state(win)
       end
       wx = flr(sin(go_t * 0.07) * 1.5)
       cc = cols[flr(go_t * 0.08) % 4 + 1]
-      ?txt, sx + wx, ty + 1, 1
+      ?txt, mx + wx + 1, ty + 1, 1
       ?txt, mx + wx, ty, cc
       if go_t > 45 then
         ?"score: " .. final_score, 42, ty + 16, go_t > 65 and 7 or 6
@@ -342,9 +338,6 @@ function make_end_state(win)
       end
       if go_t > 90 and flr(go_t / 8) % 2 == 0 then
         ?"a:retry  b:title", 26, ty + 36, 6
-      end
-      if win and go_t > 120 then
-        ?"by justin smith", 32, ty + 44, 10
       end
     end
   }
@@ -369,14 +362,14 @@ level_intro_state = {
 
     if level > MAX_LEVEL then
       wx2 = flr(sin(li_t * 0.2) * 2)
-      ?"warning!", 45 + wx2, ty - 6, 8
-      ?"warning!", 44 + wx2, ty - 7, 7
-      ?"boss stage", 42 + wx, ty + 4, 1
-      ?"boss stage", 41 + wx, ty + 3, cc
+      print("warning!", 45 + wx2, ty - 6, 8)
+      print("warning!", 44 + wx2, ty - 7, 7)
+      print("boss stage", 42 + wx, ty + 4, 1)
+      print("boss stage", 41 + wx, ty + 3, cc)
     else
       txt = "level " .. level
-      ?txt, 45 + wx, ty + 1, 1
-      ?txt, 44 + wx, ty, cc
+      print(txt, 45 + wx, ty + 1, 1)
+      print(txt, 44 + wx, ty, cc)
     end
     if li_t > 60 then
       sc = li_t < 70 and 5 or 6
@@ -484,14 +477,14 @@ shop_state = {
         rect(cx - 1, 34, cx + 57, 91, 6)
       end
       spr(item.sp, cx + 24, 44)
-      ?item.name, cx + 28 - #item.name * 2, 58, 7
+      print(item.name, cx + 28 - #item.name * 2, 58, 7)
       cc = 11
       txt = "free"
-      ?txt, cx + 28 - #txt * 2, 68, cc
+      print(txt, cx + 28 - #txt * 2, 68, cc)
     end
     if #shop_choices == 0 then
-      ?"nothing", 44, 55, 5
-      ?"available", 40, 63, 5
+      print("nothing", 44, 55, 5)
+      print("available", 40, 63, 5)
     end
     if shop_t > 25 and flr(t() * 2) % 2 == 0 then
       ?"a:buy  b:skip", 32, 100, 6
@@ -569,8 +562,18 @@ function init_player()
 end
 
 function update_player(obj)
-  local dx, dy = 0, 0
+  if state == win_state then
+    obj.vx = 0
+    obj.vy = -0.6
+    obj.x += obj.vx
+    obj.y += obj.vy
+    if tf(60, 2) == 0 then
+      burst_thruster(obj.x + 4, obj.y + 8, obj.t_cols, 1)
+    end
+    return
+  end
 
+  local dx, dy = 0, 0
   if btn(0) then dx -= 1 end
   if btn(1) then dx += 1 end
   if btn(2) then dy -= 1 end
@@ -637,7 +640,8 @@ function update_player(obj)
 end
 
 function burst_muzzle(x, y)
-  emit_fx(x, y, 2, { cols = { 9, 10, 7 }, ang = 0.25, ang_r = 0.3, spd = 1 + rnd(1.5), life = 8, drag = 0.92, fade = true })
+  -- fade default is true in make_particle
+  emit_fx(x, y, 2, { cols = { 9, 10, 7 }, ang = 0.25, ang_r = 0.3, spd = 1 + rnd(1.5), life = 8, drag = 0.92 })
 end
 
 function fire_bullet(obj)
@@ -681,12 +685,12 @@ function draw_player(obj)
   if btn(4) or btn(5) then
     local cx = obj.x + 4
     local cy = obj.y + 4
-    local pulse = flr(t()*8)%2==0 and 10 or 7
+    local pulse = flr(t() * 8) % 2 == 0 and 10 or 7
     pset(cx, cy, pulse)
-    pset(cx-1, cy, 6)
-    pset(cx+1, cy, 6)
-    pset(cx, cy-1, 6)
-    pset(cx, cy+1, 6)
+    pset(cx - 1, cy, 6)
+    pset(cx + 1, cy, 6)
+    pset(cx, cy - 1, 6)
+    pset(cx, cy + 1, 6)
   end
 
   if obj.flash_t > 0 then
@@ -752,21 +756,17 @@ function damage_player(frames)
   if p.archetype == 3 and p.shield and p.shield > 0 then
     p.shield = 0
     p.shield_timer = 0
-    p.iframes = frames -- Grant standard hit invulnerability duration
-    p.max_iframes = frames
     p.shield_flash_t = 15
     sfx(3) -- Play distinct impact audio
     burst_sparks(p.x + 4, p.y + 4, 12, PLASMA_C) -- Visual energy ring pop
-    return
+  else
+    -- Standard Damage Path: Balanced Ship Extended Iframe Buff
+    p.hp -= 1
+    frames = frames + (p.iframe_mod or 0)
+    if p.hp <= 0 then player_death() end
   end
-
-  -- Standard Damage Path
-  p.hp -= 1
-  -- Balanced Ship Extended Iframe Buff
-  p.iframes = frames + (p.iframe_mod or 0)
-  p.max_iframes = frames + (p.iframe_mod or 0)
-
-  if p.hp <= 0 then player_death() end
+  p.iframes = frames
+  p.max_iframes = frames
 end
 
 function player_death()
@@ -776,14 +776,11 @@ function player_death()
   death_flash_t = 15
   shake_screen(8, 50)
   local cx, cy = p.x + 4, p.y + 4
-  add(entities, make_explosion(cx, cy, true))
-  add(entities, make_shockwave(cx, cy, true))
+  make_boom(cx, cy, true, 24, 14, 10)
+  -- secondary scatter explosions for big finale
   for i = 1, 3 do
     add(entities, make_explosion(cx + rnd(20) - 10, cy + rnd(20) - 10))
   end
-  burst_sparks(cx, cy, 24, SPARK_C)
-  burst_smoke(cx, cy, 14, SMOKE_C)
-  burst_embers(cx, cy, 10)
   sfx(2)
   hit_stop_t = 3
 end
@@ -791,7 +788,7 @@ end
 -->8
 -- tab 3: entities
 -- boss hp-bar color per stage (1=cyan,2=orange,3=red)
-BPHC = {11, 9, 8}
+BPHC = { 11, 9, 8 }
 
 -- base entity constructor: creates a table with shared fields
 -- and default update/draw stubs that call self:move() / self:render().
@@ -1086,7 +1083,9 @@ enemy_types = {
         e.armor = 1
         shake_screen(4, 15)
         e.flash = 8
-        for eb in all(ebullets) do eb.dead = true end
+        for eb in all(ebullets) do
+          eb.dead = true
+        end
         hit_stop_t = 6
         e.shoot_t = 25
       end
@@ -1095,7 +1094,9 @@ enemy_types = {
         e.armor = 0
         shake_screen(6, 20)
         e.flash = 8
-        for eb in all(ebullets) do eb.dead = true end
+        for eb in all(ebullets) do
+          eb.dead = true
+        end
         hit_stop_t = 6
         e.shoot_t = 25
       end
@@ -1185,7 +1186,7 @@ function make_bullet(obj, btype)
         entities, make_particle(
           self.x + 3, self.y + 4, {
             cols = { 12, 13, 7 }, ang = 0.75, ang_r = 0.1,
-            spd = 0.5 + rnd(0.5), life = 6, fade = true
+            spd = 0.5 + rnd(0.5), life = 6
           }
         )
       )
@@ -1194,7 +1195,7 @@ function make_bullet(obj, btype)
         entities, make_particle(
           self.x + 3, self.y + 4, {
             cols = { 7, 10, 9 }, ang = 0.75, ang_r = 0.1,
-            spd = 1 + rnd(0.5), life = 8, fade = true, trail = true
+            spd = 1 + rnd(0.5), life = 8, trail = true
           }
         )
       )
@@ -1268,7 +1269,7 @@ function make_enemy_bullet(src, spd)
       entities, make_particle(
         self.x + 2, self.y + 2, {
           cols = { 10, 9, 8 }, ang = 0.75, ang_r = 0.25,
-          spd = 0.6, life = 8, fade = true
+          spd = 0.6, life = 8
         }
       )
     )
@@ -1431,9 +1432,6 @@ function make_popup(x, y, pts)
   return e
 end
 
-
-
-
 function make_particle(x, y, opts)
   opts = opts or {}
   -- resolve options with defaults
@@ -1517,33 +1515,58 @@ function burst_sparks(x, y, n, cols)
   emit_fx(x, y, n or 6, { cols = cols or SPARK_C, spd = 1.5 + rnd(2.5), life = 10 + rnd(12), grav = 0.04, drag = 0.94, trail = true })
 end
 
--- smoke puff: slow, heavy, fades dark -- use for: enemy death,
--- engine exhaust, big explosions
-function burst_smoke(x, y, n, cols)
-  emit_fx(x, y, n or 5, { cols = cols or SMOKE_C, spd = 0.2 + rnd(0.6), life = 25 + rnd(20), grav = -0.01, drag = 0.96, fade = true, size = 2 })
-end
-
--- slow hot embers drifting upward -- use for: explosion aftermath
-function burst_embers(x, y, n)
-  emit_fx(x, y, n or 5, { cols = EMBER_C, ang = 0.25, ang_r = 0.35, spd = 0.2 + rnd(0.7), life = 35 + rnd(30), grav = -0.015, drag = 0.97, fade = true, size = 1 })
-end
-
 -- thruster glow: tight upward cone -- use for: player/enemy
--- engines, boost pickups
--- dir: 1=upward (player), -1=downward (enemy)
+-- engines, boost pickups. dir: 1=upward (player), -1=downward (enemy)
 function burst_thruster(x, y, cols, dir)
-  local base_ang = (dir or 1) == 1 and 0.25 or 0.75
-  emit_fx(x, y, 2, { cols = cols or EMBER_C, ang = base_ang, ang_r = 0.12, spd = 0.8 + rnd(1.2), life = 6 + rnd(8), drag = 0.9, fade = true })
+  emit_fx(x, y, 2, { cols = cols or EMBER_C, ang = dir == -1 and 0.75 or 0.25, ang_r = 0.12, spd = 0.8 + rnd(1.2), life = 6 + rnd(8), drag = 0.9 })
+end
+
+-- standard "thing exploded" fx bundle: explosion + shockwave +
+-- sparks + smoke + embers. x,y = impact center. big=true scales up.
+-- sn/smn/en override default spark/smoke/ember counts.
+function make_boom(x, y, big, sn, smn, en)
+  -- make_explosion auto-centers small (+4); big uses x,y as-is
+  add(entities, make_explosion(big and x or x - 4, big and y or y - 4, big))
+  add(entities, make_shockwave(x, y, big))
+  burst_sparks(x, y, sn or 8, SPARK_C)
+  -- smoke puff: slow, heavy, fades dark
+  emit_fx(x, y, smn or 7, { cols = SMOKE_C, spd = 0.2 + rnd(0.6), life = 25 + rnd(20), grav = -0.01, drag = 0.96, size = 2 })
+  -- slow hot embers drifting upward (size=1 + fade=true are defaults)
+  emit_fx(x, y, en or 5, { cols = EMBER_C, ang = 0.25, ang_r = 0.35, spd = 0.2 + rnd(0.7), life = 35 + rnd(30), grav = -0.015, drag = 0.97 })
+end
+
+-- player damage levels:
+-- {dmg_frames, shake_m, shake_d, flash_t, stop_t, sparks_n, sparks_cols, explode}
+-- light = enemy bullet hit, heavy = enemy body hit. death is its own function.
+HL = {
+  light = { 50, 2, 8, 6, 2, 8, { 8, 9, 10 }, false },
+  heavy = { 60, 3, 12, 8, 3, 6, { 8, 9, 7 }, true }
+}
+
+-- unified "player got hit" response. fx,fy = impact center
+-- (defaults to player center). explode=true emits boom fx at impact.
+function hit_player(lvl, fx, fy)
+  local h = HL[lvl]
+  fx, fy = fx or p.x + 4, fy or p.y + 4
+  sfx(2)
+  damage_player(h[1])
+  shake_screen(h[2], h[3])
+  hit_flash_t = h[4]
+  hit_stop_t = h[5]
+  burst_sparks(fx, fy, h[6], h[7])
+  if h[8] then
+    -- make_explosion auto-centers small mode (+4)
+    add(entities, make_explosion(fx - 4, fy - 4))
+    add(entities, make_shockwave(fx, fy))
+    add(entities, make_hit_flash(fx, fy))
+  end
 end
 
 function kill_enemy(en)
   sfx(1)
-  add(entities, make_explosion(en.x, en.y))
-  add(entities, make_shockwave(en.x + 4, en.y + 4))
+  local cx, cy = en.x + 4, en.y + 4
+  make_boom(cx, cy)
   add(entities, make_popup(en.x, en.y, en.pts))
-  burst_sparks(en.x + 4, en.y + 4, 8, SPARK_C)
-  burst_smoke(en.x + 4, en.y + 4, 7)
-  burst_embers(en.x + 4, en.y + 4, 5)
   en.dead = true
   if en.is_boss then
     boss_ent = nil
@@ -1594,18 +1617,10 @@ function check_collisions()
       end
       -- 2. enemy body vs player (no iframes needed on enemy bullets)
       if p.iframes <= 0 and collide(p, en) then
-        sfx(2)
-        add(entities, make_explosion(en.x, en.y))
-        add(entities, make_shockwave(ecx, ecy))
-        add(entities, make_hit_flash(ecx, ecy))
-        burst_sparks(ecx, ecy, 6, { 8, 9, 7 })
+        hit_player("heavy", ecx, ecy)
         if not en.is_boss then
           en.dead = true
         end
-        damage_player(60)
-        shake_screen(3, 12)
-        hit_flash_t = 8
-        hit_stop_t = 3
       end
     end
   end
@@ -1614,23 +1629,22 @@ function check_collisions()
     if not eb.dead then
       if p.iframes <= 0 and collide(p, eb) then
         eb.dead = true
-        damage_player(50)
-        shake_screen(2, 8)
-        hit_flash_t = 6
-        hit_stop_t = 2
-        burst_sparks(p.x+4, p.y+4, 8, {8,9,10})
-        sfx(2)
-      -- graze: near-miss detection (wider 6れ❎6 zone vs 2れ❎2 hitbox)
+        hit_player("light")
+        -- graze: near-miss detection (wider 6れ❎6 zone vs 2れ❎2 hitbox)
       elseif not eb.grazed then
-        local gx, gy = p.x+1, p.y+1
-        local bx, by = eb.x+(eb.hx or 0), eb.y+(eb.hy or 0)
+        local gx, gy = p.x + 1, p.y + 1
+        local bx, by = eb.x + (eb.hx or 0), eb.y + (eb.hy or 0)
         local bw, bh = eb.hw or eb.w, eb.hh or eb.h
-        if not (gx >= bx+bw or gx+6 <= bx or gy >= by+bh or gy+6 <= by) then
+        if not (gx >= bx + bw or gx + 6 <= bx or gy >= by + bh or gy + 6 <= by) then
           eb.grazed = true
           score += 1
-          add(entities, make_particle(p.x+4, p.y+4, {
-            cols={7,12}, spd=0.5, life=5, fade=true
-          }))
+          add(
+            entities, make_particle(
+              p.x + 4, p.y + 4, {
+                cols = { 7, 12 }, spd = 0.5, life = 5
+              }
+            )
+          )
         end
       end
     end
@@ -1728,7 +1742,7 @@ function draw_hud()
   if boss_ent and not boss_ent.dead then
     pct = boss_ent.hp / boss_ent.max_hp
     bc = BPHC[boss_ent.combat_phase]
-    ?"boss", 10, 115, bc
+    print("boss", 10, 115, bc)
     rect(10, 122, 118, 126, 5)
     rectfill(10, 122, 10 + flr(pct * 108), 126, bc)
   end
