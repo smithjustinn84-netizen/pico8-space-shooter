@@ -867,25 +867,25 @@ boss_fire = {
     -- alternate aimed fan with a 2-shot harass; telegraph the next fan during harass
     e.p1_step = (e.p1_step or 0) + 1
     if e.p1_step % 2 == 1 then
-      boss_aimed_fan(e, 5, 0.06, 1.1)
-      e.shoot_t = 30
-    else
-      boss_aimed_fan(e, 2, 0.10, 0.9)
-      boss_telegraph(e)
+      boss_aimed_fan(e, 5, 0.06, 1.3)
       e.shoot_t = 25
+    else
+      boss_aimed_fan(e, 2, 0.10, 1.1)
+      boss_telegraph(e)
+      e.shoot_t = 20
     end
   end,
   function(e)
-    local spd = 1.3
-    e.spiral_a = (e.spiral_a or 0) + 0.025
+    local spd = 1.5
+    e.spiral_a = (e.spiral_a or 0) + 0.035
     boss_shoot_one(e, cos(e.spiral_a) * spd, sin(e.spiral_a) * spd)
     boss_shoot_one(e, cos(e.spiral_a + 0.5) * spd, sin(e.spiral_a + 0.5) * spd)
     -- periodic aimed sweep keeps player out of static dodge pocket
     e.p2_step = (e.p2_step or 0) + 1
     if e.p2_step % 6 == 0 then
-      boss_aimed_fan(e, 1, 0, 1.5)
+      boss_aimed_fan(e, 1, 0, 1.7)
     end
-    e.shoot_t = 12
+    e.shoot_t = 10
   end,
   function(e)
     e.fire_count = (e.fire_count or 0) + 1
@@ -893,22 +893,22 @@ boss_fire = {
     if m == 1 then
       -- rotating safe-spot: ring phase drifts each cycle so player can't park
       local off = (e.fire_count * 0.07) % 1
-      for i = 0, 13 do
-        local a = i / 14 + off
-        boss_shoot_one(e, cos(a) * 1.2, sin(a) * 1.2)
+      for i = 0, 15 do
+        local a = i / 16 + off
+        boss_shoot_one(e, cos(a) * 1.4, sin(a) * 1.4)
       end
     elseif m == 2 then
       boss_telegraph(e)
-      boss_aimed_fan(e, 7, 0.07, 1.6)
+      boss_aimed_fan(e, 9, 0.06, 1.8)
     else
-      e.spiral_a = (e.spiral_a or 0) + 0.03
+      e.spiral_a = (e.spiral_a or 0) + 0.04
       for i = 0, 3 do
         local a = e.spiral_a + i * 0.25
-        boss_shoot_one(e, cos(a) * 1.3, sin(a) * 1.3)
-        boss_shoot_one(e, cos(-a) * 1.3, sin(-a) * 1.3)
+        boss_shoot_one(e, cos(a) * 1.5, sin(a) * 1.5)
+        boss_shoot_one(e, cos(-a) * 1.5, sin(-a) * 1.5)
       end
     end
-    e.shoot_t = 26
+    e.shoot_t = 22
   end
 }
 
@@ -1059,8 +1059,8 @@ enemy_types = {
     mk_x = function() return 56 end,
     mk_vy = function() return 0.2 end,
     extra = function(e)
-      e.hp = 150
-      e.max_hp = 150
+      e.hp = 250
+      e.max_hp = 250
       e.is_boss = true
       -- 16x16 sprite (sheet 0,32 idle / 16,32 attack), tight hitbox
       e.w = 16
@@ -1076,28 +1076,28 @@ enemy_types = {
       e.attack_t = 0
       e.combat_phase = 1
       e.armor = 1
-      e.shoot_t = 60
+      e.shoot_t = 50
       boss_ent = e
     end,
     move = function(e)
       -- stage transitions: shake, flash, clear bullets, brief pause
-      if e.combat_phase < 2 and e.hp <= 100 then
+      if e.combat_phase < 2 and e.hp <= 170 then
         e.combat_phase = 2
         e.armor = 1
         shake_screen(4, 15)
         e.flash = 8
         for eb in all(ebullets) do eb.dead = true end
         hit_stop_t = 6
-        e.shoot_t = 30
+        e.shoot_t = 25
       end
-      if e.combat_phase < 3 and e.hp <= 50 then
+      if e.combat_phase < 3 and e.hp <= 80 then
         e.combat_phase = 3
         e.armor = 0
         shake_screen(6, 20)
         e.flash = 8
         for eb in all(ebullets) do eb.dead = true end
         hit_stop_t = 6
-        e.shoot_t = 30
+        e.shoot_t = 25
       end
       -- descend to anchor, then slow Lissajous around upper-center
       if e.vy > 0 then
