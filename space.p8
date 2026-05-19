@@ -51,7 +51,20 @@ WEAPONS = {
   plasma = { w_sp = 51, b_sp = S_BULLET_PLASMA, sfx = 4, muz = S_MUZZLE_PLASMA, dmg = 2, v = -5 },
   laser = { w_sp = 52, b_sp = S_BULLET_LASER, sfx = 5, muz = S_MUZZLE_LASER, dmg = 3, v = -6 }
 }
+-- per-weapon level offsets: W_OFF[btype][min(lv,3)] -> array applied to b.x (or b.vx if W_VX[btype])
+W_OFF = {
+  basic  = { { 0 }, { -3, 3 }, { -4, 0, 4 } },
+  spread = { { -2.5, 0, 2.5 }, { -3.5, 0, 3.5 }, { -4, -2, 0, 2, 4 } },
+  plasma = { { -4, 4 }, { -4, 0, 4 }, { -6, -2, 2, 6 } },
+  laser  = { { 0 }, { 0 }, { -4, 4 } }
+}
+W_VX = { spread = true }
 function tf(n, m) return flr(t() * n) % m end
+-- spawn helper: add to entities + optional typed sublist
+function add_e(e, list)
+  add(entities, e)
+  if list then add(list, e) end
+end
 shop_choices = {}
 shop_cursor = 1
 selected_ship = 1
@@ -620,38 +633,16 @@ function burst_muzzle(x, y)
 end
 
 function fire_bullet(obj)
-  local btype = obj.weapon
-  local lv = obj.weapon_lv
-  local mx, my = obj.x + 4, obj.y - 2
-  if btype == "basic" then
-    local offsets = lv >= 3 and { -4, 0, 4 } or lv == 2 and { -3, 3 } or { 0 }
-    for _, ox in ipairs(offsets) do
-      local b = make_bullet(obj, "basic") b.x += ox
-      add(entities, b) add(bullets, b)
-    end
-  elseif btype == "spread" then
-    local vxs = lv >= 3 and { -4, -2, 0, 2, 4 } or lv == 2 and { -3.5, 0, 3.5 } or { -2.5, 0, 2.5 }
-    for _, vx in ipairs(vxs) do
-      local b = make_bullet(obj, "spread") b.vx = vx
-      add(entities, b) add(bullets, b)
-    end
-  elseif btype == "plasma" then
-    local offsets = lv >= 3 and { -6, -2, 2, 6 } or lv == 2 and { -4, 0, 4 } or { -4, 4 }
-    for _, ox in ipairs(offsets) do
-      local b = make_bullet(obj, "plasma") b.x += ox
-      add(entities, b) add(bullets, b)
-    end
-  elseif btype == "laser" then
-    local offsets = lv >= 3 and { -4, 4 } or { 0 }
-    for _, ox in ipairs(offsets) do
-      local b = make_bullet(obj, "laser")
-      b.x += ox
-      add(entities, b)
-      add(bullets, b)
-    end
+  local btype, lv = obj.weapon, obj.weapon_lv
+  for _, ox in ipairs(W_OFF[btype][min(lv, 3)]) do
+    local b = make_bullet(obj, btype)
+    if W_VX[btype] then b.vx = ox else b.x += ox end
+    add_e(b, bullets)
+  end
+  if btype == "laser" then
     shake_screen(lv >= 2 and 2 or 1, lv >= 2 and 6 or 4)
   end
-  burst_muzzle(mx, my)
+  burst_muzzle(obj.x + 4, obj.y - 2)
   sfx(WEAPONS[btype].sfx)
 end
 
@@ -811,6 +802,13 @@ function move_zigzag(e)
   e.x = mid(0, e.ox + 30 * sin(e.phase), 120)
 end
 
+-- shared lifetime tick: increment h, mark dead when expired.
+-- used by particles/explosions/shockwaves; pattern matches their h/max_h fields.
+function tick_life(s)
+  s.h += 1
+  if s.h > s.max_h then s.dead = true end
+end
+
 -- spawn one enemy bullet from boss center with given velocity
 function boss_shoot_one(e, vx, vy)
   local eb = make_enemy_bullet(e, 1)
@@ -818,8 +816,7 @@ function boss_shoot_one(e, vx, vy)
   eb.y = e.y + 6
   eb.vx = vx
   eb.vy = vy
-  add(entities, eb)
-  add(ebullets, eb)
+  add_e(eb, ebullets)
 end
 
 -- shared aimed fan: n bullets, angular spread, speed; centered on aim vector
@@ -839,48 +836,43 @@ function boss_aimed_fan(e, n, spread, spd)
   end
 end
 
--- stage 1 "sweeper": sparse, telegraphed 5-bullet aimed fan
-function stage1_fire(e)
-  boss_aimed_fan(e, 5, 0.06, 1.1)
-  e.shoot_t = 70
-  sfx(7)
-end
-
--- stage 2 "spiral": rotating dual-stream, forces constant motion
-function stage2_fire(e)
-  local spd = 1.3
-  e.spiral_a = (e.spiral_a or 0) + 0.025
-  boss_shoot_one(e, cos(e.spiral_a) * spd, sin(e.spiral_a) * spd)
-  boss_shoot_one(e, cos(e.spiral_a + 0.5) * spd, sin(e.spiral_a + 0.5) * spd)
-  e.shoot_t = 14
-  sfx(7)
-end
-
--- stage 3 "storm": three-shot round-robin (ring / fan / counter-spiral)
-function stage3_fire(e)
-  e.fire_count = (e.fire_count or 0) + 1
-  local m = e.fire_count % 3
-  if m == 1 then
-    -- dense 14-bullet ring
-    for i = 0, 13 do
-      local a = i / 14
-      boss_shoot_one(e, cos(a) * 1.2, sin(a) * 1.2)
+-- boss fire patterns indexed by combat_phase
+-- [1] sweeper: telegraphed 5-bullet aimed fan
+-- [2] spiral: rotating dual-stream
+-- [3] storm: round-robin ring / fan / counter-spiral
+boss_fire = {
+  function(e)
+    boss_aimed_fan(e, 5, 0.06, 1.1)
+    e.shoot_t = 70
+  end,
+  function(e)
+    local spd = 1.3
+    e.spiral_a = (e.spiral_a or 0) + 0.025
+    boss_shoot_one(e, cos(e.spiral_a) * spd, sin(e.spiral_a) * spd)
+    boss_shoot_one(e, cos(e.spiral_a + 0.5) * spd, sin(e.spiral_a + 0.5) * spd)
+    e.shoot_t = 14
+  end,
+  function(e)
+    e.fire_count = (e.fire_count or 0) + 1
+    local m = e.fire_count % 3
+    if m == 1 then
+      for i = 0, 13 do
+        local a = i / 14
+        boss_shoot_one(e, cos(a) * 1.2, sin(a) * 1.2)
+      end
+    elseif m == 2 then
+      boss_aimed_fan(e, 7, 0.07, 1.6)
+    else
+      e.spiral_a = (e.spiral_a or 0) + 0.03
+      for i = 0, 3 do
+        local a = e.spiral_a + i * 0.25
+        boss_shoot_one(e, cos(a) * 1.3, sin(a) * 1.3)
+        boss_shoot_one(e, cos(-a) * 1.3, sin(-a) * 1.3)
+      end
     end
-  elseif m == 2 then
-    -- wide aimed fan, faster bullets
-    boss_aimed_fan(e, 7, 0.07, 1.6)
-  else
-    -- counter-rotating spiral burst
-    e.spiral_a = (e.spiral_a or 0) + 0.03
-    for i = 0, 3 do
-      local a = e.spiral_a + i * 0.25
-      boss_shoot_one(e, cos(a) * 1.3, sin(a) * 1.3)
-      boss_shoot_one(e, cos(-a) * 1.3, sin(-a) * 1.3)
-    end
+    e.shoot_t = 32
   end
-  e.shoot_t = 32
-  sfx(7)
-end
+}
 
 function apply_pal(c3, c11, c12, c7, c6)
   pal(3, c3)
@@ -925,7 +917,7 @@ enemy_types = {
       if e.shoot_t <= 0 then
         e.shoot_t = 70
         local eb = make_enemy_bullet(e, 0.9)
-        add(entities, eb) add(ebullets, eb)
+        add_e(eb, ebullets)
         sfx(7)
       end
     end,
@@ -950,8 +942,7 @@ enemy_types = {
         for i = -1, 1 do
           local eb = make_enemy_bullet(e, 1.2)
           eb.vx += i * 0.35
-          add(entities, eb)
-          add(ebullets, eb)
+          add_e(eb, ebullets)
         end
         sfx(7)
       end
@@ -988,7 +979,7 @@ enemy_types = {
           local eb = make_enemy_bullet(e, 0.8)
           eb.vx = cos(a) * 0.8
           eb.vy = sin(a) * 0.8
-          add(entities, eb) add(ebullets, eb)
+          add_e(eb, ebullets)
         end
         sfx(7)
       end
@@ -1012,7 +1003,7 @@ enemy_types = {
           local a = e.phase + i * 0.05
           eb.vx = cos(a) * 1.0
           eb.vy = sin(a) * 1.0
-          add(entities, eb) add(ebullets, eb)
+          add_e(eb, ebullets)
         end
         sfx(7)
       end
@@ -1080,16 +1071,11 @@ enemy_types = {
       end
       -- attack pose timer
       if e.attack_t > 0 then e.attack_t -= 1 end
-      -- fire (each stage sets its own shoot_t cooldown)
+      -- fire: dispatch by phase (each pattern sets its own shoot_t cooldown)
       e.shoot_t -= 1
       if e.shoot_t <= 0 then
-        if e.combat_phase == 1 then
-          stage1_fire(e)
-        elseif e.combat_phase == 2 then
-          stage2_fire(e)
-        else
-          stage3_fire(e)
-        end
+        boss_fire[e.combat_phase](e)
+        sfx(7)
         e.attack_t = 10
       end
     end,
@@ -1328,8 +1314,7 @@ function make_explosion(x, y, big)
       self.y += self.sy
       self.sx *= 0.9
       self.sy *= 0.9
-      self.h += 1
-      if self.h > self.max_h then self.dead = true end
+      tick_life(self)
     end
     p.render = function(self)
       local f = self.h / self.max_h
@@ -1348,10 +1333,7 @@ function make_explosion(x, y, big)
   e.h = 0
   e.max_h = mh
   e.r = rb + rnd(rr)
-  e.move = function(self)
-    self.h += 1
-    if self.h > self.max_h then self.dead = true end
-  end
+  e.move = tick_life
   e.render = function(self)
     local f = self.h / self.max_h
     local c = 7
@@ -1370,10 +1352,7 @@ function make_shockwave(x, y, big)
   e.h = 0
   e.max_h = big and 22 or 16
   e.max_r = big and 28 or 18
-  e.move = function(self)
-    self.h += 1
-    if self.h > self.max_h then self.dead = true end
-  end
+  e.move = tick_life
   e.render = function(self)
     local f = self.h / self.max_h
     local r = flr(self.max_r * f)

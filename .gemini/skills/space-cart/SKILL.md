@@ -32,3 +32,24 @@ Read these from the cart, not from any markdown:
 ## Asset pack
 
 `SpaceShooterAssets/` is a reference PNG pack (top-down ships / projectiles / backgrounds) included for visual reference only. Sprites used at runtime are hand-translated into the `__gfx__` block of the cart. Nothing on disk loads PNGs at runtime — don't write code that tries.
+
+## Token-conservation conventions
+
+The cart is token-constrained (a previous pass already dropped enemy types to stay under 8192). When adding code, use these existing helpers and table lookups rather than open-coding the patterns:
+
+- **`add_e(e, list)`** — defined in tab 0. Adds `e` to `entities` and, if `list` is given, also to the typed sublist (`bullets` / `ebullets` / `enemies`). Always use this for spawns; never write `add(entities, x) add(list, x)` twice.
+- **`W_OFF[btype][min(lv,3)]`** + **`W_VX[btype]`** — defined in tab 0 next to `WEAPONS`. Per-weapon per-level offset arrays. `fire_bullet` reads them in a single loop. Adding a new weapon type means adding a row to `WEAPONS`, a row to `W_OFF`, and (if the offset modifies velocity instead of position) a flag in `W_VX`. No new `if btype == ...` branches.
+- **`tick_life(self)`** — defined in tab 3. Increments `self.h` and marks `self.dead` when `self.h > self.max_h`. Use as `e.move = tick_life` for any FX entity with `h`/`max_h` lifetime fields (explosions, shockwaves, particles can call it from inside a richer move closure).
+- **`boss_fire[phase](e)`** — defined in tab 3 (above the boss `enemy_types` entry). Indexed by `combat_phase` (1/2/3). Add new phases by appending a function. Boss move calls `boss_fire[e.combat_phase](e); sfx(7)` — `sfx(7)` is hoisted out of each pattern.
+- **`enemy_types` table** — adding an enemy is one new row (`sp`, `pts`, `move`, `mk_x`, `mk_vy`, `extra`, optional `draw_fn`). Never write a standalone `spawn_enemy_X()` function.
+- **`burst_sparks` / `burst_smoke` / `burst_embers` / `burst_thruster`** — one-line wrappers around `emit_fx`. Random expressions in their option tables evaluate per *burst*, not per *particle*; the per-particle variation comes from `make_particle`'s own logic. If you need true per-particle randomness on a field, the wrapper has to be expanded inline.
+
+## Deferred token-savings (known follow-ups)
+
+These were identified during a token audit but not yet applied. If the budget tightens again, attack these next:
+- **Data-driven `enemy_types` move dispatch.** The current table embeds long inline `move` closures per type. Lifting them to top-level `move_chaser` / `move_tank` / etc. with shared spawn-bullet helpers should save ~120 tokens.
+- **String → int weapon and state IDs in hot paths.** Replace `btype == "basic"` comparisons with integer constants; cheaper per comparison.
+- **Extract `check_collisions` handlers.** Three nested blocks (bullet vs enemy, enemy vs player, ebullet vs player) repeat `burst_sparks` / `make_hit_flash` / `add_e` patterns; per-type handler functions would collapse the duplication.
+- **Multi-cart split.** `load("game.p8")` from a title cart, with `cartdata()` for hi-score persistence. Last resort — breaks one-cart BBS upload simplicity.
+
+See the `pico8` skill's "Token economy" section for general PICO-8 techniques and the source links there.
