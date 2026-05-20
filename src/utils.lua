@@ -1,0 +1,53 @@
+-- utils.lua
+-- shared helper functions and systems
+
+-- frame animation tick helper
+function tf(n, m)
+  return flr(t() * n) % m
+end
+
+-- spawn helper: add to entities list and optionally a typed sub-list
+function add_e(e, list)
+  add(entities, e)
+  if list then
+    add(list, e)
+  end
+end
+
+-- standard AABB bounding box collision helper
+-- entities may carry hx/hy/hw/hh for a centered sub-hitbox
+function collide(a, b)
+  local ax, ay = a.x + (a.hx or 0), a.y + (a.hy or 0)
+  local aw, ah = a.hw or a.w, a.hh or a.h
+  local bx, by = b.x + (b.hx or 0), b.y + (b.hy or 0)
+  local bw, bh = b.hw or b.w, b.hh or b.h
+  return not (ax >= bx + bw
+        or ax + aw <= bx
+        or ay >= by + bh
+        or ay + ah <= by)
+end
+
+-- trigger a screen shake
+function shake_screen(mag, dur)
+  shake_t = dur or mag * 4
+  shake_mag = mag
+end
+
+-- apply camera offset based on active screen shake
+function apply_shake()
+  if shake_t > 0 then
+    camera(rnd(shake_mag * 2) - shake_mag, rnd(shake_mag * 2) - shake_mag)
+  else
+    camera()
+  end
+end
+
+-- render full-screen hit flashes or death flashes
+function draw_hit_flash()
+  if death_flash_t > 0 then
+    local c = death_flash_t > 10 and 7 or (death_flash_t > 5 and 10 or 9)
+    rectfill(0, 0, 127, 127, c)
+  elseif hit_flash_t > 0 then
+    rect(0, 0, 127, 127, 8)
+  end
+end

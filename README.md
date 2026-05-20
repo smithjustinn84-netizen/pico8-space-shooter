@@ -1,50 +1,95 @@
 # Space Shooter SHMUP
 
-A fast-paced, classic shoot 'em up (SHMUP) built for the **PICO-8** fantasy console. Pilot your ship through a dangerous starfield, blast waves of enemies, and strive for the highest score!
+A fast-paced, vertical-scrolling space shooter (SHMUP) built for the **PICO-8** fantasy console. Pilot your ship through a dangerous starfield, choose from three distinct ship archetypes, battle waves of enemies, and face down the ultimate alien boss!
 
 ![Space Shooter Gameplay](SpaceShooterAssets/preview.gif) *(Note: Add a preview gif if available)*
 
+---
+
 ## Features
 
-- **Smooth Arcade Movement**: responsive controls with acceleration and friction for a premium "feel."
-- **Dynamic Visuals**: Animated thrusters, muzzle flashes, and a multi-layered parallax starfield.
-- **Combat System**: 
-  - Rapid-fire laser cannon.
-  - Challenging enemy waves with varying speeds.
-  - Explosion effects with expanding shockwave rings.
-  - Score popups (+10) that float up from each kill.
-- **HUD & Health**: Keep track of your score and your 3 HP. Includes invincibility frames (iframes) to give you a fighting chance after taking damage. Taking a hit triggers screen shake and a red border flash.
-- **Retro Audio**: Custom sound effects for firing, enemy destruction, and player collisions.
+- **Modular Campaign & Boss Rush**: Play the progressive campaign (`space.p8`) or jump straight into the intense Boss Rush (`boss.p8`).
+- **Ship Archetypes**: Choose your style—Balanced, Assault (high fire rate), or Heavy (slow, powerful double shots).
+- **Responsive Controls**: Physics-based flight controls with custom acceleration and drag characteristics.
+- **Dynamic Visuals**: Animated thrusters, muzzle flashes, custom shockwaves, particles, and floating score popups.
+- **Invincibility & Screen Shake**: Action-packed feedback with screen-shake, red border damage flashes, and iframes.
+- **Parallax Starfield**: Multi-layered background stars that scale speed relative to ship motion.
 
-## Controls
+---
 
-| Action | Control |
-| :--- | :--- |
-| **Move Ship** | Arrow Keys |
-| **Fire Laser** | `Z` or `X` (Button 4/5) |
-| **Start Game** | `Z` or `X` |
+## Codebase Architecture
+
+The project has been refactored into a modular structure where core gameplay files are shared between both cartridges. 
+
+```
+.
+├── space.p8            # Campaign Cartridge (entry point)
+├── boss.p8             # Boss Rush Cartridge (entry point)
+├── build.sh            # Automated compilation and minification script
+└── src/                # Shared Lua modules
+    ├── constants.lua   # Palettes, ship configurations, weapon tables
+    ├── utils.lua       # Bounding box collision, shake patterns, object pooling
+    ├── stars.lua       # Starfield update & rendering
+    ├── fx.lua          # Particles, shockwaves, score popups
+    ├── player.lua      # Ship controls, firing logic, archetype adjustments
+    ├── entities.lua    # Enemy spawning, bullets, hit detection
+    ├── boss.lua        # Boss attack sequences, state machine
+    └── hud.lua         # Level wave progress, shield, HP, boss life indicators
+```
+
+Each cartridge uses relative `#include` statements to load these modules dynamically.
+
+---
+
+## Development & Minification Pipeline
+
+PICO-8 has a strict budget of **8,192 tokens**. Combining all shared modules unminified pushes the campaign cartridge slightly over this limit (~8,213 tokens). 
+
+To solve this while keeping the source code human-readable (with long variable names and detailed comments), we use a minification and compilation step utilizing `shrinko8`.
+
+### Building Minified Carts
+An automated script, `build.sh`, is included in the project root. Running it searches for your local `shrinko8.py` installation, runs safe-only minification, and outputs fully playable visual `.png` cartridges:
+
+```bash
+# Run the automated build script
+./build.sh
+```
+
+This compiles:
+* **`space.p8.png`** (Campaign): ~8,115 tokens (99.06% of limit, safely under budget)
+* **`boss.p8.png`** (Boss Rush): ~7,421 tokens (91.00% of limit)
+
+---
 
 ## How to Play
 
-1. **Launch**: Open `space.p8` in PICO-8.
-2. **Start**: Press `Z` or `X` on the title screen.
-3. **Survive**: Navigate your ship to avoid colliding with enemies.
-4. **Destroy**: Blast enemies to earn **10 points** each.
-5. **HP**: You have 3 lives. If you hit an enemy, you'll lose one and gain temporary invincibility. Lose all three, and it's game over!
+### Controls
 
-## Technical Details
+| Action | Keyboard Control | PICO-8 Button |
+| :--- | :--- | :--- |
+| **Move Ship** | Arrow Keys | D-Pad |
+| **Fire Laser** | `Z` / `C` | Button 🅾️ (Button 4) |
+| **Slow down / Focus** | `X` / `V` | Button ❎ (Button 5) |
+| **Start / Select** | `Z` / `C` | Button 🅾️ (Button 4) |
 
-- **Language**: Lua (PICO-8 variant)
-- **Resolution**: 128x128 pixels
-- **Palette**: 16 colors (Standard PICO-8 palette)
-- **Architecture**: Modular state-based structure (Title, Game) for easy expansion.
+### Game Modes
 
-## Development
+1. **Campaign (`space.p8.png`)**: Survive incoming enemy waves, accumulate score (+10 points per kill), and progress through stages.
+2. **Boss Rush (`boss.p8.png`)**: Skip straight to the climax! Dodge intense bullet-hell patterns and take down the final boss.
 
-This project follows PICO-8 best practices for performance and organization:
-- **State Management**: Uses a `state` table to toggle between title and gameplay logic.
-- **Physics**: Implements vector-based movement with clamping to ensure consistent speed.
-- **AABB Collisions**: Efficient Axis-Aligned Bounding Box checks for entity interactions.
+### Launching in PICO-8
+
+You can run the minified, compiled cartridges directly using the CLI:
+
+```bash
+# Run the Campaign
+/Applications/PICO-8.app/Contents/MacOS/pico8 -run space.p8.png
+
+# Run the Boss Rush
+/Applications/PICO-8.app/Contents/MacOS/pico8 -run boss.p8.png
+```
+
+Alternatively, open PICO-8 and type `load space.p8.png` or `load boss.p8.png` followed by `run`.
 
 ---
 *Created by [Justin Smith](https://github.com/justinsmith)*
