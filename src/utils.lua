@@ -51,3 +51,13 @@ function draw_hit_flash()
     rect(0, 0, 127, 127, 8)
   end
 end
+
+-- apply a multi-color palette swap map
+function apply_pal(c3, c11, c12, c7, c6)
+  pal(3, c3)
+  pal(11, c11)
+  pal(12, c12)
+  pal(7, c7)
+  pal(6, c6)
+end
+
