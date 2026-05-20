@@ -10,7 +10,9 @@ A fast-paced, vertical-scrolling space shooter (SHMUP) built for the **PICO-8** 
 
 - **Modular Campaign & Boss Rush**: Play the progressive campaign (`space.p8`) or jump straight into the intense Boss Rush (`boss.p8`).
 - **Ship Archetypes**: Choose your style—Balanced, Assault (high fire rate), or Heavy (slow, powerful double shots).
-- **Responsive Controls**: Physics-based flight controls with custom acceleration and drag characteristics.
+- **Highly Optimized Fixed-Point Game Math**: Completely custom trig-based vector normalization, squared-distance proximity checks, and branchless diagonal speed approximations designed for PICO-8's 60 FPS constraint.
+- **Premium UI Micro-Animations**: Interative menus, ship selection screens, and the campaign Upgrade Shop feature organic sliding selection boxes driven by smooth linear interpolation (`lerp`).
+- **Responsive Controls**: Physics-based flight controls with precise diagonal speed normalization (`0.7071`).
 - **Dynamic Visuals**: Animated thrusters, muzzle flashes, custom shockwaves, particles, and floating score popups.
 - **Invincibility & Screen Shake**: Action-packed feedback with screen-shake, red border damage flashes, and iframes.
 - **Parallax Starfield**: Multi-layered background stars that scale speed relative to ship motion.
@@ -28,7 +30,7 @@ The project has been refactored into a modular structure where core gameplay fil
 ├── build.sh            # Automated compilation and minification script
 └── src/                # Shared Lua modules
     ├── constants.lua   # Palettes, ship configurations, weapon tables
-    ├── utils.lua       # Bounding box collision, shake patterns, object pooling
+    ├── utils.lua       # Bounding box collision, shake patterns, lerp, angle_to, dist_sqr
     ├── stars.lua       # Starfield update & rendering
     ├── fx.lua          # Particles, shockwaves, score popups
     ├── player.lua      # Ship controls, firing logic, archetype adjustments
@@ -56,8 +58,8 @@ An automated script, `build.sh`, is included in the project root. Running it sea
 ```
 
 This compiles:
-* **`space.p8.png`** (Campaign): ~8,115 tokens (99.06% of limit, safely under budget)
-* **`boss.p8.png`** (Boss Rush): ~7,421 tokens (91.00% of limit)
+* **`space.p8.png`** (Campaign): ~8,051 tokens (98.28% of limit, safely under budget)
+* **`boss.p8.png`** (Boss Rush): ~7,344 tokens (89.65% of limit)
 
 ---
 
