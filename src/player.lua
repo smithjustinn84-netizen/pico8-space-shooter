@@ -84,8 +84,8 @@ function update_player(obj)
 
   -- normalise diagonal speed
   if dx ~= 0 and dy ~= 0 then
-    dx *= 0.707
-    dy *= 0.707
+    dx *= 0.7071
+    dy *= 0.7071
   end
 
   -- precision focused movement
@@ -199,7 +199,8 @@ function draw_player(obj)
 end
 
 function draw_thruster(obj, dx)
-  spd = sqrt(obj.vx * obj.vx + obj.vy * obj.vy)
+  local spd = max(abs(obj.vx), abs(obj.vy))
+  if (obj.vx ~= 0 and obj.vy ~= 0) spd *= 1.4142
   t16 = flr(t() * 16)
   fh = 4 + flr(spd * 4) + t16 % 2
   fn = t16 % 4

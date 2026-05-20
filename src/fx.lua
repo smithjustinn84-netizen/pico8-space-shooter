@@ -21,10 +21,7 @@ function make_explosion(x, y, big)
     end
     p.render = function(self)
       local f = self.h / self.max_h
-      local c = 7
-      if f > 0.2 then c = 10 end
-      if f > 0.5 then c = 9 end
-      if f > 0.8 then c = 5 end
+      local c = f > 0.8 and 5 or f > 0.5 and 9 or f > 0.2 and 10 or 7
       local curr_r = self.r * (1 - f)
       if curr_r > 0 then
         circfill(self.x, self.y, curr_r, c)
@@ -39,9 +36,7 @@ function make_explosion(x, y, big)
   e.move = tick_life
   e.render = function(self)
     local f = self.h / self.max_h
-    local c = 7
-    if f > t1 then c = 10 end
-    if f > t2 then c = 9 end
+    local c = f > t2 and 9 or f > t1 and 10 or 7
     local curr_r = self.r * (1 - f)
     if curr_r > 0 then
       circfill(self.x, self.y, curr_r, c)
@@ -60,10 +55,7 @@ function make_shockwave(x, y, big)
   e.render = function(self)
     local f = self.h / self.max_h
     local r = flr(self.max_r * f)
-    local c = 7
-    if f > 0.3 then c = 10 end
-    if f > 0.6 then c = 9 end
-    if f > 0.85 then c = 4 end
+    local c = f > 0.85 and 4 or f > 0.6 and 9 or f > 0.3 and 10 or 7
     if r > 0 then
       circ(self.x, self.y, r, c)
       if f < 0.5 and r > 1 then
@@ -143,14 +135,7 @@ function make_particle(x, y, opts)
 
   e.render = function(self)
     local f = self.life / self.ml
-    local c = self.col
-    if fade then
-      if f < 0.2 then
-        c = 1
-      elseif f < 0.4 then
-        c = 5
-      end
-    end
+    local c = fade and (f < 0.2 and 1 or f < 0.4 and 5 or self.col) or self.col
     if trail and f > 0.4 then
       pset(self.x - self.vx * 0.5, self.y - self.vy * 0.5, 1)
     end

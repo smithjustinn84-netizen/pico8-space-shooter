@@ -61,3 +61,21 @@ function apply_pal(c3, c11, c12, c7, c6)
   pal(6, c6)
 end
 
+-- smooth linear interpolation helper
+function lerp(a, b, t)
+  return a + (b - a) * t
+end
+
+-- calculate angle between two points using PICO-8's atan2 (dx, dy)
+function angle_to(x1, y1, x2, y2)
+  return atan2(x2 - x1, y2 - y1)
+end
+
+-- optimized squared distance helper for proximity checking
+function dist_sqr(x1, y1, x2, y2)
+  local dx = x2 - x1
+  local dy = y2 - y1
+  return dx * dx + dy * dy
+end
+
+

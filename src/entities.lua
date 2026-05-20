@@ -61,14 +61,11 @@ function make_bullet(obj, btype)
     end
   elseif btype == "spread" then
     e.render = function(self)
-      pset(self.x + 3, self.y, 7)
-      pset(self.x + 4, self.y, 7)
-      pset(self.x + 3, self.y + 1, 10)
-      pset(self.x + 4, self.y + 1, 10)
-      pset(self.x + 3, self.y + 2, 9)
-      pset(self.x + 4, self.y + 2, 9)
-      pset(self.x + 3, self.y + 3, 8)
-      pset(self.x + 4, self.y + 3, 8)
+      local bx, by = self.x + 3, self.y
+      rectfill(bx, by,     bx + 1, by,     7)
+      rectfill(bx, by + 1, bx + 1, by + 1, 10)
+      rectfill(bx, by + 2, bx + 1, by + 2, 9)
+      rectfill(bx, by + 3, bx + 1, by + 3, 8)
     end
   else
     e.render = function(self)
@@ -92,14 +89,11 @@ end
 
 -- build aimed enemy projectile bullet
 function make_enemy_bullet(src, spd)
-  local dx = (p.x + 4) - (src.x + 4)
-  local dy = (p.y + 4) - (src.y + 4)
-  local d = sqrt(dx * dx + dy * dy)
-  if d == 0 then d = 1 end
+  local a = angle_to(src.x + 4, src.y + 4, p.x + 4, p.y + 4)
   spd = spd or 1.4
   local e = make_ent("ebullet", src.x + 1, src.y + 8)
-  e.vx = (dx / d) * spd
-  e.vy = (dy / d) * spd
+  e.vx = cos(a) * spd
+  e.vy = sin(a) * spd
   e.w = 6
   e.h = 6
   e.hx = 1
@@ -119,16 +113,9 @@ function make_enemy_bullet(src, spd)
     if self.is_boss then
       spr(17 + tf(4, 2), self.x, self.y)
     else
-      local cx = self.x + 2
-      local cy = self.y + 2
-      pset(cx, cy - 2, 9)
-      pset(cx, cy + 2, 9)
-      pset(cx - 2, cy, 9)
-      pset(cx + 2, cy, 9)
-      pset(cx, cy - 1, 10)
-      pset(cx, cy + 1, 10)
-      pset(cx - 1, cy, 10)
-      pset(cx + 1, cy, 10)
+      local cx, cy = self.x + 3, self.y + 3
+      circfill(cx, cy, 2, 9)
+      circfill(cx, cy, 1, 10)
       pset(cx, cy, 7)
     end
   end
@@ -222,10 +209,7 @@ enemy_types = {
     end,
     mk_x = function() return 20 + rnd(80) end,
     mk_vy = function() return 0.3 + rnd(0.2) end,
-    extra = function(e) e.hp = 7 e.shoot_t = 60 end,
-    draw_fn = function(en)
-      spr(S_ENEMY3 + tf(4, 2), en.x, en.y)
-    end
+    extra = function(e) e.hp = 7 e.shoot_t = 60 end
   },
   spinner = {
     sp = S_ENEMY4, pts = 40,

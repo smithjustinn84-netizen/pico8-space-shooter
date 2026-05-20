@@ -3,11 +3,9 @@
 
 -- telegraph line indicator
 function boss_telegraph(e)
-  local dx = (p.x + 4) - (e.x + 8)
-  local dy = (p.y + 4) - (e.y + 8)
-  local d = sqrt(dx * dx + dy * dy)
-  local tx = e.x + 8 + dx / d * 16
-  local ty = e.y + 8 + dy / d * 16
+  local a = angle_to(e.x + 8, e.y + 8, p.x + 4, p.y + 4)
+  local tx = e.x + 8 + cos(a) * 16
+  local ty = e.y + 8 + sin(a) * 16
   local tg = make_ent("fx", tx - 1, ty - 1)
   tg.h, tg.max_h = 0, 10
   tg.render = function(s) circfill(s.x + 1, s.y + 1, 1, 8) pset(s.x + 1, s.y + 1, 7) end
@@ -27,18 +25,11 @@ end
 
 -- spawn spread aimed fan of bullets
 function boss_aimed_fan(e, n, spread, spd)
-  local bx = (p.x + 4) - (e.x + 8)
-  local by = (p.y + 4) - (e.y + 8)
-  local d = sqrt(bx * bx + by * by)
-  if d == 0 then d = 1 end
-  bx = bx / d * spd
-  by = by / d * spd
+  local a = angle_to(e.x + 8, e.y + 8, p.x + 4, p.y + 4)
   local half = (n - 1) / 2
   for i = 0, n - 1 do
-    local off = (i - half) * spread
-    local cs = cos(off)
-    local sn = sin(off)
-    boss_shoot_one(e, bx * cs - by * sn, bx * sn + by * cs)
+    local off = a + (i - half) * spread
+    boss_shoot_one(e, cos(off) * spd, sin(off) * spd)
   end
 end
 

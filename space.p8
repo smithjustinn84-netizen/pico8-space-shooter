@@ -133,11 +133,13 @@ title_state = {
   draw = function()
     draw_stars()
     print("space shooter", 38, 40, 7)
+    local target_x = 46 + (selected_ship - 1) * 16
+    title_cx = lerp(title_cx or target_x, target_x, 0.25)
+    circfill(title_cx + 4, 64, 8, 5)
     types = { "balanced", "assault", "heavy" }
     for i = 1, 3 do
       sx, sy = 46 + (i - 1) * 16, 60
       if selected_ship == i then
-        circfill(sx + 3, sy + 3, 8, 5)
         print(types[i], 64 - #types[i] * 2, 74, 6)
         s = ships[i]
         print("hp:", 30, 82, 6)
@@ -423,14 +425,14 @@ shop_state = {
     cls(0)
     draw_stars()
     print("shop", 54, 4, 7)
+    local target_x = shop_cursor == 1 and 4 or 68
+    shop_cx = lerp(shop_cx or target_x, target_x, 0.25)
+    rect(shop_cx - 1, 34, shop_cx + 57, 91, 6)
     for i, item in ipairs(shop_choices) do
       cx = i == 1 and 4 or 68
       col = shop_cursor == i and 7 or 5
       rectfill(cx, 35, cx + 56, 90, 1)
       rect(cx, 35, cx + 56, 90, col)
-      if shop_cursor == i then
-        rect(cx - 1, 34, cx + 57, 91, 6)
-      end
       spr(item.sp, cx + 24, 44)
       print(item.name, cx + 28 - #item.name * 2, 58, 7)
       cc = 11
